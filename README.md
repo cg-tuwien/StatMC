@@ -1,5 +1,7 @@
 # A Statistical Approach to Monte Carlo Denoising
 
+![A visual and quantitative comparison between a noisy input rendering of the Staircase scene and the corresponding denoised outputs from Moon CI, OptiX, OIDN, ProDen, and our method.](https://users.cg.tuwien.ac.at/~hiroyuki/StatMC/static/images/saconferencepapers24-34-fig1.jpg)
+
 This repository contains our implementation of our research paper ["A Statistical Approach to Monte Carlo Denoising" [Sakai et al. 2024]](https://www.cg.tuwien.ac.at/StatMC).
 Our implementation extends [pbrt-v3](https://github.com/mmp/pbrt-v3) to provide the following:
 
@@ -48,7 +50,7 @@ In the following, we describe two alternative ways to build our code: an automat
 
 ### Manual Building
 
-Skip this if you have used the automatic approach [above](#automatic-building-(for-ubuntu-22.04-lts)).
+Skip this if you have used the automatic approach [above](#automatic-building-for-ubuntu-2204-lts).
 
 1.  Clone this repository (OpenCV will be cloned automatically as a submodule):
     ```bash
@@ -144,7 +146,7 @@ For those comparisons, we have used the commits linked here:
 
 However, we include our own implementation of [Moon et al.'s confidence-interval approach [2013]](https://doi.org/10.1111/cgf.12004) in this repository; to activate it, OpenCV must be compiled with this compiler flag, which can be passed via `CMAKE_CXX_FLAGS` through CMake: `-DMEMFNC=1`.
 Note that using this flag globally switches to their approach, thereby completely disabling our denoiser.
-To reproduce the results reported in our paper for their approach, it is necessary to change the significance level to 0.002 (from 0.005); this is done by assigning `&t_002_quantiles[0]` to `*t_quantiles` (and uncommenting the corresponding line right above) [here](https://github.com/cg-tuwien/StatMC-opencv_contrib/blob/master/modules/cudaimgproc/src/cuda/stat_denoiser.cu#L67)
+To reproduce the results reported in our paper for their approach, it is necessary to change the significance level to 0.002 (from 0.005); this is done by assigning `&t_002_quantiles[0]` to `*t_quantiles` (and uncommenting the corresponding line right above) [here](https://github.com/cg-tuwien/StatMC-opencv_contrib/blob/master/modules/cudaimgproc/src/cuda/stat_denoiser.cu#L67).
 Furthermore, Box-Cox transformation must be disabled by setting [this flag](src/statistics/statpath.cpp#L1043) to `false`.
 
 ### Additional Steps for Reproducing Specific Figures
@@ -229,7 +231,7 @@ The following table summarizes all available options for our `StatPathIntegrator
 | integer | `filterradius` | `20` | Radius of the denoising filter kernel (limiting the kernel to a finite number of pixels) |
 | string[] | `filterbuffers` | `["albedo" "normal"]` | G-buffers for denoising; possible options are `materialid`, `depth`, `normal`, `albedo`. `materialid` refers to unique numbers that are assigned to different materials by the renderer. For fair comparisons, we used albedos and normals only. |
 | float[] | `filterbuffersds` | `[0.02 0.1]` | Standard deviations associated with the G-buffers ($\sigma_r$ as described in [one of the original joint-bilateral-filter papers](https://hhoppe.com/flash.pdf)); lower values make the filter more discriminative. |
-| string | `outputregex` | `film.*` | Regular expression specifying the buffers to output (to disk or network socket as determined by the `--writeimages` and `--displayserver` [command-line options](#additional-command-line-options)); buffers whose unique names match the specified regular expression are output. This way of specification provides a high degree of flexibility, e.g., `film.*\|t0-.*` matches all buffers whose name begins with `film` or `t0-`. We provide a complete list of buffers [below](#buffer-reference). |
+| string | `outputregex` | `film.*` | Regular expression specifying the buffers to output (to disk or network socket as determined by the `--writeimages` and `--displayserver` [command-line options](#additional-command-line-options)); buffers whose unique names match the specified regular expression are output. This way of specification provides a high degree of flexibility, e.g., `film.*\|t0-.*` matches all buffers whose name begins with `film` or `t0-`. We provide a complete list of buffers [below](#buffer-system). |
 
 #### Including Files
 
