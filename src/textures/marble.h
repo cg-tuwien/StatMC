@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -86,6 +96,10 @@ class MarbleTexture : public Texture<Spectrum> {
         s1 = (1.f - t) * s1 + t * s2;
         // Extra scale of 1.5 to increase variation among colors
         return 1.5f * ((1.f - t) * s0 + t * s1);
+    }
+    Spectrum Evaluate() const {
+        LOG(FATAL) <<
+            "MarbleTexture::Evaluate() method called; not implemented";
     }
 
   private:

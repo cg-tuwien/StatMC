@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,7 @@
 // materials/mixmat.h*
 #include "pbrt.h"
 #include "material.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -50,11 +61,13 @@ class MixMaterial : public Material {
     // MixMaterial Public Methods
     MixMaterial(const std::shared_ptr<Material> &m1,
                 const std::shared_ptr<Material> &m2,
-                const std::shared_ptr<Texture<Spectrum>> &scale)
-        : m1(m1), m2(m2), scale(scale) {}
+                const std::shared_ptr<Texture<Spectrum>> &scale,
+                const unsigned long long id = 0)
+        : Material(id), m1(m1), m2(m2), scale(scale) {}
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
+    RGBSpectrum GetAlbedo(SurfaceInteraction *si) const;
 
   private:
     // MixMaterial Private Data
@@ -64,7 +77,8 @@ class MixMaterial : public Material {
 
 MixMaterial *CreateMixMaterial(const TextureParams &mp,
                                const std::shared_ptr<Material> &m1,
-                               const std::shared_ptr<Material> &m2);
+                               const std::shared_ptr<Material> &m2,
+                               const unsigned long long id = 0);
 
 }  // namespace pbrt
 

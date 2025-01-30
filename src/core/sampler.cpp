@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // core/sampler.cpp*
 #include "sampler.h"
@@ -69,6 +79,10 @@ bool Sampler::SetSampleNumber(int64_t sampleNum) {
     array1DOffset = array2DOffset = 0;
     currentPixelSampleIndex = sampleNum;
     return currentPixelSampleIndex < samplesPerPixel;
+}
+
+void Sampler::SetSPP(int64_t nsamp) {
+    samplesPerPixel = nsamp;
 }
 
 void Sampler::Request1DArray(int n) {

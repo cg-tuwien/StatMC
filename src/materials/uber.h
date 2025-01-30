@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,8 @@
 // materials/uber.h*
 #include "pbrt.h"
 #include "material.h"
+#include "spectrum.h"
+#include "texture.h"
 
 namespace pbrt {
 
@@ -57,22 +69,13 @@ class UberMaterial : public Material {
                  const std::shared_ptr<Texture<Spectrum>> &opacity,
                  const std::shared_ptr<Texture<Float>> &eta,
                  const std::shared_ptr<Texture<Float>> &bumpMap,
-                 bool remapRoughness)
-        : Kd(Kd),
-          Ks(Ks),
-          Kr(Kr),
-          Kt(Kt),
-          opacity(opacity),
-          roughness(roughness),
-          roughnessu(roughnessu),
-          roughnessv(roughnessv),
-          eta(eta),
-          bumpMap(bumpMap),
-          remapRoughness(remapRoughness) {}
-
+                 bool remapRoughness,
+                 const unsigned long long id = 0);
+    ~UberMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
+    RGBSpectrum GetAlbedo(SurfaceInteraction *si) const;
 
   private:
     // UberMaterial Private Data
@@ -80,9 +83,24 @@ class UberMaterial : public Material {
     std::shared_ptr<Texture<Float>> roughness, roughnessu, roughnessv, eta,
         bumpMap;
     bool remapRoughness;
+
+    // UberMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
 };
 
-UberMaterial *CreateUberMaterial(const TextureParams &mp);
+UberMaterial *CreateUberMaterial(const TextureParams &mp,
+                                 const unsigned long long id = 0);
 
 }  // namespace pbrt
 

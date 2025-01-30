@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/matte.cpp*
 #include "materials/matte.h"
@@ -37,11 +47,47 @@
 #include "reflection.h"
 #include "interaction.h"
 #include "texture.h"
-#include "interaction.h"
+#include "spectrum.h"
+#include "statistics/luts/mattealbedo.h"
 
 namespace pbrt {
 
 // MatteMaterial Method Definitions
+MatteMaterial::MatteMaterial(
+    const std::shared_ptr<Texture<Spectrum>> &Kd,
+    const std::shared_ptr<Texture<Float>> &sigma,
+    const std::shared_ptr<Texture<Float>> &bumpMap,
+    const unsigned long long id
+) : Material(id),
+    Kd(Kd),
+    sigma(sigma),
+    bumpMap(bumpMap)
+{
+    AllocateLUT(
+        &matteAlbedoLUT[0],
+         matteAlbedoLUTNDims,
+        &matteAlbedoLUTMaxIndices[0],
+        &matteAlbedoLUTOffsets[0],
+         albedoLUT,           // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTNDims,
+         albedoLUTMaxIndices, // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTOffsets,    // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTRGBOffsets  // Allocated with new
+    );
+}
+
+MatteMaterial::~MatteMaterial() {
+    DeallocateLUT(
+        &matteAlbedoLUT[0],
+        &matteAlbedoLUTMaxIndices[0],
+        &matteAlbedoLUTOffsets[0],
+         albedoLUT,
+         albedoLUTMaxIndices,
+         albedoLUTOffsets,
+         albedoLUTRGBOffsets
+    );
+}
+
 void MatteMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                MemoryArena &arena,
                                                TransportMode mode,
@@ -61,13 +107,52 @@ void MatteMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     }
 }
 
-MatteMaterial *CreateMatteMaterial(const TextureParams &mp) {
+RGBSpectrum MatteMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    RGBSpectrum r = Kd->Evaluate(*si).Clamp();
+
+    return r * Material::GetAlbedo(si);
+}
+
+void MatteMaterial::GetLUTReducibilities(
+    bool &reducible,
+    bool *reducibilities,
+    unsigned char &nDims
+) const {
+    if (sigma->IsConstant()) {
+        LUT_SET_REDUCIBILITY(1)
+    }
+}
+
+void MatteMaterial::GetLUTReductionIndices(
+    std::vector<std::vector<Float>> &indices
+) const {
+    if (sigma->IsConstant()) {
+        const Float sigmaMapped = Clamp(InverseLerp(sigma->Evaluate(), 0.f, 90.f), 0.f, 1.f);
+        LUT_SET_INDICES(1, sigmaMapped)
+    }
+}
+
+void MatteMaterial::GetLUTIndices(
+    SurfaceInteraction *si,
+    std::vector<std::vector<Float>> &indices
+) const {
+    const Float cosThetaMapped = Clamp(InverseLerp(Dot(si->wo, si->shading.n), CosEpsilon, 1.f), 0.f, 1.f); // Transform wo.z to local space
+    LUT_SET_INDICES(0, cosThetaMapped)
+
+    if (!sigma->IsConstant()) {
+        const Float sigmaMapped = Clamp(InverseLerp(sigma->Evaluate(*si), 0.f, 90.f), 0.f, 1.f);
+        LUT_SET_INDICES(1, sigmaMapped)
+    }
+}
+
+MatteMaterial *CreateMatteMaterial(const TextureParams &mp,
+                                   const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> Kd =
         mp.GetSpectrumTexture("Kd", Spectrum(0.5f));
     std::shared_ptr<Texture<Float>> sigma = mp.GetFloatTexture("sigma", 0.f);
     std::shared_ptr<Texture<Float>> bumpMap =
         mp.GetFloatTextureOrNull("bumpmap");
-    return new MatteMaterial(Kd, sigma, bumpMap);
+    return new MatteMaterial(Kd, sigma, bumpMap, id);
 }
 
 }  // namespace pbrt

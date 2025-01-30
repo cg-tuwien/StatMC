@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // main/pbrt.cpp*
 #include "pbrt.h"
@@ -37,6 +47,8 @@
 #include "parser.h"
 #include "parallel.h"
 #include <glog/logging.h>
+
+#include "pbrt/util/display.h"
 
 using namespace pbrt;
 
@@ -47,12 +59,21 @@ static void usage(const char *msg = nullptr) {
     fprintf(stderr, R"(usage: pbrt [<options>] <filename.pbrt...>
 Rendering options:
   --cropwindow <x0,x1,y0,y1> Specify an image crop window.
-  --help               Print this help text.
-  --nthreads <num>     Use specified number of threads for rendering.
-  --outfile <filename> Write the final image to the given filename.
-  --quick              Automatically reduce a number of quality settings to
-                       render more quickly.
-  --quiet              Suppress all text output other than error messages.
+  --help                   Print this help text.
+  --nthreads <num>         Use specified number of threads for rendering.
+  --outfile <filename>     Write the final image to the given filename.
+  --quick                  Automatically reduce a number of quality settings to
+                           render more quickly.
+  --quiet                  Suppress all text output other than error messages.
+  --writeimages            Write images to disk.
+  --displayserver <socket> Write images to the specified network socket (format
+                           <IP address>:<port number>).
+  --baseseed <num>         Use the specified base seed for RandomSampler.
+  --denoise                Skip rendering and use prerendered images on disk
+                           instead (useful for performing multiple denoising
+                           passes without rerendering).
+  --warmup                 Perform a warm-up iteration (useful for consistent
+                           performance measurements).
 
 Logging options:
   --logdir <dir>       Specify directory that log files should be written to.
@@ -134,6 +155,21 @@ int main(int argc, char *argv[]) {
                    !strcmp(argv[i], "-h")) {
             usage();
             return 0;
+        } else if (!strcmp(argv[i], "--writeimages") || !strcmp(argv[i], "-writeimages")) {
+            options.writeImages = true;
+        } else if (!strcmp(argv[i], "--displayserver") || !strcmp(argv[i], "-displayserver")) {
+            if (i + 1 == argc)
+                usage("missing value after --displayserver argument");
+            options.displayImages = true;
+            options.displayServer = argv[++i];
+        } else if (!strcmp(argv[i], "--baseseed") || !strcmp(argv[i], "-baseseed")) {
+            if (i + 1 == argc)
+                usage("missing value after --baseseed argument");
+            options.baseSeed = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "--denoise") || !strcmp(argv[i], "-denoise")) {
+            options.denoise = true;
+        } else if (!strcmp(argv[i], "--warmup") || !strcmp(argv[i], "-warmup")) {
+            options.warmUp = true;
         } else
             filenames.push_back(argv[i]);
     }
@@ -151,7 +187,14 @@ int main(int argc, char *argv[]) {
 #endif // !NDEBUG
         printf(
             "Copyright (c)1998-2018 Matt Pharr, Greg Humphreys, and Wenzel "
-            "Jakob.\n");
+            "Jakob.\n"
+            "\n"
+            "This build contains modifications to the original pbrt source code for the\n"
+            "paper \"A Statistical Approach to Monte Carlo Denoising\"\n"
+            "(https://www.cg.tuwien.ac.at/StatMC).\n"
+            "Copyright © 2024-2025 Hiroyuki Sakai for the modifications.\n"
+            "Original copyright and license (above) remain unaffected.\n"
+            "\n");
         printf(
             "The source code to pbrt (but *not* the book contents) is covered "
             "by the BSD License.\n");
@@ -159,6 +202,8 @@ int main(int argc, char *argv[]) {
         fflush(stdout);
     }
     pbrtInit(options);
+    if (options.displayImages)
+        pbrtv4::ConnectToDisplayServer(options.displayServer);
     // Process scene description
     if (filenames.empty()) {
         // Parse scene from standard input
@@ -168,6 +213,8 @@ int main(int argc, char *argv[]) {
         for (const std::string &f : filenames)
             pbrtParseFile(f);
     }
+    if (options.displayImages)
+        pbrtv4::DisconnectFromDisplayServer();
     pbrtCleanup();
     return 0;
 }

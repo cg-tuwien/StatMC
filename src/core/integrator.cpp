@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 // core/integrator.cpp*
 #include "integrator.h"
 #include "scene.h"
@@ -336,6 +346,13 @@ void SamplerIntegrator::Render(const Scene &scene) {
 
     // Save final image after rendering
     camera->film->WriteImage();
+}
+
+Spectrum SamplerIntegrator::Li(const RayDifferential &ray, const Scene &scene,
+                               Sampler &sampler, MemoryArena &arena,
+                               int depth) const {
+    LOG(FATAL) << "SamplerIntegrator::Li() is not implemented!";
+    return Spectrum(0.f);
 }
 
 Spectrum SamplerIntegrator::SpecularReflect(

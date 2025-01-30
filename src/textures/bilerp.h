@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -58,6 +68,10 @@ class BilerpTexture : public Texture<T> {
         Point2f st = mapping->Map(si, &dstdx, &dstdy);
         return (1 - st[0]) * (1 - st[1]) * v00 + (1 - st[0]) * (st[1]) * v01 +
                (st[0]) * (1 - st[1]) * v10 + (st[0]) * (st[1]) * v11;
+    }
+    T Evaluate() const {
+        LOG(FATAL) <<
+            "BilerpTexture::Evaluate() method called; not implemented";
     }
 
   private:

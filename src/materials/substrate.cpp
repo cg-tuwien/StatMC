@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/substrate.cpp*
 #include "materials/substrate.h"
@@ -38,10 +48,52 @@
 #include "paramset.h"
 #include "texture.h"
 #include "interaction.h"
+#include "statistics/luts/substratealbedo.h"
 
 namespace pbrt {
 
 // SubstrateMaterial Method Definitions
+SubstrateMaterial::SubstrateMaterial(
+    const std::shared_ptr<Texture<Spectrum>> &Kd,
+    const std::shared_ptr<Texture<Spectrum>> &Ks,
+    const std::shared_ptr<Texture<Float>> &nu,
+    const std::shared_ptr<Texture<Float>> &nv,
+    const std::shared_ptr<Texture<Float>> &bumpMap,
+    bool remapRoughness,
+    const unsigned long long id
+) : Material(id),
+    Kd(Kd),
+    Ks(Ks),
+    nu(nu),
+    nv(nv),
+    bumpMap(bumpMap),
+    remapRoughness(remapRoughness)
+{
+    AllocateLUT(
+        &substrateAlbedoLUT[0],
+         substrateAlbedoLUTNDims,
+        &substrateAlbedoLUTMaxIndices[0],
+        &substrateAlbedoLUTOffsets[0],
+         albedoLUT,           // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTNDims,
+         albedoLUTMaxIndices, // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTOffsets,    // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTRGBOffsets  // Allocated with new
+    );
+}
+
+SubstrateMaterial::~SubstrateMaterial() {
+    DeallocateLUT(
+        &substrateAlbedoLUT[0],
+        &substrateAlbedoLUTMaxIndices[0],
+        &substrateAlbedoLUTOffsets[0],
+         albedoLUT,
+         albedoLUTMaxIndices,
+         albedoLUTOffsets,
+         albedoLUTRGBOffsets
+    );
+}
+
 void SubstrateMaterial::ComputeScatteringFunctions(
     SurfaceInteraction *si, MemoryArena &arena, TransportMode mode,
     bool allowMultipleLobes) const {
@@ -64,7 +116,87 @@ void SubstrateMaterial::ComputeScatteringFunctions(
     }
 }
 
-SubstrateMaterial *CreateSubstrateMaterial(const TextureParams &mp) {
+void SubstrateMaterial::GetLUTReducibilities(bool          &reducible,
+                                             bool          *reducibilities,
+                                             unsigned char &nDims) const {
+    if (Kd->IsConstant()) {
+        LUT_SET_REDUCIBILITY(1)
+    }
+    if (Ks->IsConstant()) {
+        LUT_SET_REDUCIBILITY(2)
+    }
+    if (nu->IsConstant()) {
+        LUT_SET_REDUCIBILITY(3)
+    }
+    if (nv->IsConstant()) {
+        LUT_SET_REDUCIBILITY(4)
+    }
+}
+
+void SubstrateMaterial::GetLUTReductionIndices(
+    std::vector<std::vector<Float>> &indices
+) const {
+    if (Kd->IsConstant()) {
+        const RGBSpectrum kdMapped = Kd->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(1, kdMapped)
+    }
+    if (Ks->IsConstant()) {
+        const RGBSpectrum ksMapped = Ks->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(2, ksMapped)
+    }
+    if (nu->IsConstant()) {
+        Float roughU = nu->Evaluate();
+        if (remapRoughness)
+            roughU = TrowbridgeReitzDistribution::RoughnessToAlpha(roughU);
+        const Float nuMapped = Clamp(InverseLerp(roughU, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(3, nuMapped)
+    }
+    if (nv->IsConstant()) {
+        Float roughV = nv->Evaluate();
+        if (remapRoughness)
+            roughV = TrowbridgeReitzDistribution::RoughnessToAlpha(roughV);
+        const Float nvMapped = Clamp(InverseLerp(roughV, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(4, nvMapped)
+    }
+}
+
+void SubstrateMaterial::GetLUTIndices(
+    SurfaceInteraction *si,
+    std::vector<std::vector<Float>> &indices
+) const {
+    const Float cosThetaMapped = Clamp(InverseLerp(Dot(si->wo, si->shading.n), CosEpsilon, 1.f), 0.f, 1.f); // Transform wo.z to local space
+    LUT_SET_INDICES(0, cosThetaMapped)
+
+    unsigned char i = 1;
+    if (!Kd->IsConstant()) {
+        const RGBSpectrum kdMapped = Kd->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(1, kdMapped)
+        i++;
+    }
+    if (!Ks->IsConstant()) {
+        const RGBSpectrum ksMapped = Ks->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(2, ksMapped)
+        i++;
+    }
+    if (!nu->IsConstant()) {
+        Float roughU = nu->Evaluate(*si);
+        if (remapRoughness)
+            roughU = TrowbridgeReitzDistribution::RoughnessToAlpha(roughU);
+        const Float nuMapped = Clamp(InverseLerp(roughU, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, nuMapped)
+        i++;
+    }
+    if (!nv->IsConstant()) {
+        Float roughV = nv->Evaluate(*si);
+        if (remapRoughness)
+            roughV = TrowbridgeReitzDistribution::RoughnessToAlpha(roughV);
+        const Float nvMapped = Clamp(InverseLerp(roughV, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, nvMapped)
+    }
+}
+
+SubstrateMaterial *CreateSubstrateMaterial(const TextureParams &mp,
+                                           const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> Kd =
         mp.GetSpectrumTexture("Kd", Spectrum(.5f));
     std::shared_ptr<Texture<Spectrum>> Ks =
@@ -77,7 +209,7 @@ SubstrateMaterial *CreateSubstrateMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", true);
     return new SubstrateMaterial(Kd, Ks, uroughness, vroughness, bumpMap,
-                                 remapRoughness);
+                                 remapRoughness, id);
 }
 
 }  // namespace pbrt

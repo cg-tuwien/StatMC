@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/subsurface.cpp*
 #include "materials/subsurface.h"
@@ -97,7 +107,12 @@ void SubsurfaceMaterial::ComputeScatteringFunctions(
                                                      sig_a, sig_s, table);
 }
 
-SubsurfaceMaterial *CreateSubsurfaceMaterial(const TextureParams &mp) {
+RGBSpectrum SubsurfaceMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    return si->bsdf->rho(si->wo);
+};
+
+SubsurfaceMaterial *CreateSubsurfaceMaterial(const TextureParams &mp,
+                                             const unsigned long long id) {
     Float sig_a_rgb[3] = {.0011f, .0024f, .014f},
           sig_s_rgb[3] = {2.55f, 3.21f, 3.77f};
     Spectrum sig_a = Spectrum::FromRGB(sig_a_rgb),
@@ -131,7 +146,7 @@ SubsurfaceMaterial *CreateSubsurfaceMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", true);
     return new SubsurfaceMaterial(scale, Kr, Kt, sigma_a, sigma_s, g, eta,
-                                  roughu, roughv, bumpMap, remapRoughness);
+                                  roughu, roughv, bumpMap, remapRoughness, id);
 }
 
 }  // namespace pbrt

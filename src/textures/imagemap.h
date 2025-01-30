@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -91,6 +101,10 @@ class ImageTexture : public Texture<Treturn> {
         Treturn ret;
         convertOut(mem, &ret);
         return ret;
+    }
+    Treturn Evaluate() const {
+        LOG(FATAL) <<
+            "ImageTexture::Evaluate() method called; not implemented";
     }
 
   private:

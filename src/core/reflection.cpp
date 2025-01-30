@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 // core/reflection.cpp*
 #include "reflection.h"
 #include "spectrum.h"
@@ -708,6 +718,27 @@ Spectrum BSDF::rho(const Vector3f &woWorld, int nSamples, const Point2f *samples
     for (int i = 0; i < nBxDFs; ++i)
         if (bxdfs[i]->MatchesFlags(flags))
             ret += bxdfs[i]->rho(wo, nSamples, samples);
+    return ret;
+}
+
+const Point2f BSDF::uRho[nRhoSamples] = {
+    Point2f(0.855985, 0.570367), Point2f(0.381823, 0.851844),
+    Point2f(0.285328, 0.764262), Point2f(0.733380, 0.114073),
+    Point2f(0.542663, 0.344465), Point2f(0.127274, 0.414848),
+    Point2f(0.964700, 0.947162), Point2f(0.594089, 0.643463),
+    Point2f(0.095109, 0.170369), Point2f(0.825444, 0.263359),
+    Point2f(0.429467, 0.454469), Point2f(0.244460, 0.816459),
+    Point2f(0.756135, 0.731258), Point2f(0.516165, 0.152852),
+    Point2f(0.180888, 0.214174), Point2f(0.898579, 0.503897)
+};
+
+Spectrum BSDF::rho(const Vector3f &woWorld,
+                   BxDFType flags) const {
+    Vector3f wo = WorldToLocal(woWorld);
+    Spectrum ret(0.f);
+    for (int i = 0; i < nBxDFs; ++i)
+        if (bxdfs[i]->MatchesFlags(flags))
+            ret += bxdfs[i]->rho(wo, nRhoSamples, uRho);
     return ret;
 }
 

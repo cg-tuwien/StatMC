@@ -1,0 +1,20 @@
+Include "../_active.pbrt"
+
+ExtraParams "extras"
+	"integer integratormaxdepth" [65]
+
+Transform [ 0.704024 0.0939171 0.703939 -0 -0 0.991217 -0.132245 -0 0.710177 -0.0931034 -0.69784 -0 0.204086 -12.2287 16.5817 1]
+#Sampler "sobol" "integer pixelsamples" [ 64 ] 
+#PixelFilter "triangle" "float xwidth" [ 1.000000 ] "float ywidth" [ 1.000000 ] 
+Film "image" "integer xresolution" [ 1024 ] "integer yresolution" [ 1024 ] "string filename" [ "furball.pfm" ] 
+Camera "perspective" "float fov" [ 35.000000 ] 
+WorldBegin
+	MakeNamedMaterial "hair" "string type" [ "hair" ] "float eumelanin" 1.3
+	NamedMaterial "hair" 
+	Include "models/hair.pbrt" 
+	LightSource "distant" "point from" [ -0.376047 0.758426 0.532333 ] "point to" [ 0.000000 0.000000 0.000000 ] "rgb L" [ 19.091171 19.091171 19.091171 ] 
+	TransformBegin
+		Transform [ -1 0 8.74228e-008 0 -8.74228e-008 0 -1 0 0 1 0 0 0 0 0 1]
+		LightSource "infinite" "string mapname" [ "textures/Skydome.pfm" ] 
+	TransformEnd
+WorldEnd

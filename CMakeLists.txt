@@ -2,7 +2,7 @@
 # (https://www.slideshare.net/DanielPfeifer1/cmake-48475415) are violated
 # in this file. Would be nice to address some of these.
 
-CMAKE_MINIMUM_REQUIRED ( VERSION 3.1.0 )
+CMAKE_MINIMUM_REQUIRED ( VERSION 3.21.0 ) # required for CMAKE_C_STANDARD 17
 
 # For sanitizers
 SET (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -69,15 +69,28 @@ SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
 ###########################################################################
 # Annoying compiler-specific details
 
-IF(CMAKE_COMPILER_IS_GNUCXX)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-conversion-null")
-ELSEIF(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")
-ELSEIF(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+# Copied from pbrt-v4's CMakeLists.txt for its display functions.
+if (CMAKE_SYSTEM_NAME STREQUAL Windows)
+  list (APPEND PBRT_DEFINITIONS "PBRT_IS_WINDOWS" "NOMINMAX")
+elseif (CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  list (APPEND PBRT_DEFINITIONS "PBRT_IS_OSX")
+elseif (CMAKE_SYSTEM_NAME STREQUAL Linux)
+  list (APPEND PBRT_DEFINITIONS "PBRT_IS_LINUX")
+  # -rdynamic so we can get backtrace symbols...
+  # --no-as-needed so libprofiler sticks around
+  #string (APPEND CMAKE_EXE_LINKER_FLAGS " -rdynamic -Wl,--no-as-needed")
+else ()
+  message (SEND_ERROR "Unknown system name: " + CMAKE_SYSTEM_NAME)
+endif()
 
+
+SET(CMAKE_C_STANDARD 17)
+SET(CMAKE_CXX_STANDARD 17)
+
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+IF(CMAKE_COMPILER_IS_GNUCXX)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-conversion-null")
+ELSEIF(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
   FIND_PROGRAM(XIAR xiar)
   IF(XIAR)
     SET(CMAKE_AR "${XIAR}")
@@ -288,6 +301,34 @@ ELSE ()
 ENDIF ()
 
 ###########################################################################
+# Download large files
+
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/statistics/luts/uberalbedo.cpp")
+  MESSAGE(STATUS "Downloading uberalbedo.cpp..")
+  FILE(DOWNLOAD "https://owncloud.tuwien.ac.at/index.php/s/5z8IgAAbAXzcFhI/download" "${CMAKE_CURRENT_SOURCE_DIR}/src/statistics/luts/uberalbedo.cpp" SHOW_PROGRESS)
+ENDIF()
+
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_aces.cpp")
+  MESSAGE(STATUS "Downloading rgbspectrum_aces.cpp..")
+  FILE(DOWNLOAD "https://owncloud.tuwien.ac.at/index.php/s/wBpGVzUa1gxssDr/download" "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_aces.cpp" SHOW_PROGRESS)
+ENDIF()
+
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_dci_p3.cpp")
+  MESSAGE(STATUS "Downloading rgbspectrum_dci_p3.cpp..")
+  FILE(DOWNLOAD "https://owncloud.tuwien.ac.at/index.php/s/VpPsE6iNtD1jgoW/download" "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_dci_p3.cpp" SHOW_PROGRESS)
+ENDIF()
+
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_rec2020.cpp")
+  MESSAGE(STATUS "Downloading rgbspectrum_rec2020.cpp..")
+  FILE(DOWNLOAD "https://owncloud.tuwien.ac.at/index.php/s/f8gcziCltJ5e0hY/download" "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_rec2020.cpp" SHOW_PROGRESS)
+ENDIF()
+
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_srgb.cpp")
+  MESSAGE(STATUS "Downloading rgbspectrum_srgb.cpp..")
+  FILE(DOWNLOAD "https://owncloud.tuwien.ac.at/index.php/s/yJu3hXCkLEQKE2w/download" "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_srgb.cpp" SHOW_PROGRESS)
+ENDIF()
+
+###########################################################################
 # zlib
 
 FIND_PACKAGE ( ZLIB )
@@ -311,10 +352,14 @@ SET(ILMBASE_NAMESPACE_VERSIONING OFF CACHE BOOL " " FORCE)
 SET(OPENEXR_NAMESPACE_VERSIONING OFF CACHE BOOL " " FORCE)
 SET(OPENEXR_BUILD_SHARED_LIBS    OFF CACHE BOOL " " FORCE)
 SET(ILMBASE_BUILD_SHARED_LIBS    OFF CACHE BOOL " " FORCE)
+# https://github.com/mmp/pbrt-v4/blob/e273b3d81ef019977936278d64ed28e95ac55332/src/ext/CMakeLists.txt#L79
+SET(PYILMBASE_ENABLE             OFF CACHE BOOL " " FORCE)
+SET(OPENEXR_BUILD_UTILS          OFF CACHE BOOL " " FORCE)
 
 ADD_SUBDIRECTORY(src/ext/openexr)
 
-SET_PROPERTY(TARGET IexMath eLut toFloat b44ExpLogTable dwaLookups IlmThread Half Iex Imath IlmImf PROPERTY FOLDER "ext")
+# https://github.com/mmp/pbrt-v4/blob/e273b3d81ef019977936278d64ed28e95ac55332/src/ext/CMakeLists.txt#L84
+SET_PROPERTY(TARGET IexMath IlmThread Half Iex Imath IlmImf PROPERTY FOLDER "ext")
 
 INCLUDE_DIRECTORIES (
   src/ext/openexr/IlmBase/Imath
@@ -362,6 +407,29 @@ ENDIF ()
 ADD_SUBDIRECTORY(src/ext/ptex)
 SET_PROPERTY(TARGET Ptex_static ptxinfo halftest ftest rtest wtest PROPERTY FOLDER "ext")
 INCLUDE_DIRECTORIES ( src/ext/ptex/src/ptex )
+
+###########################################################################
+# double-conversion (from pbrt-v4)
+
+add_subdirectory (src/ext/double-conversion)
+
+#set (DOUBLE_CONVERSION_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/double-conversion PARENT_SCOPE)
+
+set_property (TARGET double-conversion cctest PROPERTY FOLDER "ext")
+INCLUDE_DIRECTORIES ( src/ext/double-conversion )
+
+###########################################################################
+# OpenCV
+
+# https://stackoverflow.com/a/22602098
+SET(OpenCV_BUILD_DIR "build/opencv" CACHE STRING "OpenCV build directory")
+FIND_PACKAGE ( OpenCV REQUIRED PATHS ${OpenCV_BUILD_DIR} NO_DEFAULT_PATH )
+INCLUDE_DIRECTORIES ( ${OpenCV_INCLUDE_DIRS} )
+
+###########################################################################
+# rapidjson
+
+INCLUDE_DIRECTORIES ( src/ext/rapidjson/include )
 
 ###########################################################################
 # On to pbrt...
@@ -461,10 +529,15 @@ FILE ( GLOB PBRT_SOURCE
   src/shapes/*
   src/textures/*
   src/media/*
+  src/display/pbrt/*
+  src/display/pbrt/util/*
+  src/statistics/*
+  src/statistics/luts/*
   )
 
 INCLUDE_DIRECTORIES ( src )
 INCLUDE_DIRECTORIES ( src/core )
+INCLUDE_DIRECTORIES ( src/display )
 
 # Visual Studio source folders
 SOURCE_GROUP (core REGULAR_EXPRESSION src/core/.*)
@@ -483,7 +556,16 @@ SOURCE_GROUP (media REGULAR_EXPRESSION src/media/.*)
 ###########################################################################
 # pbrt libraries and executables
 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_srgb.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_dci_p3.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_rec2020.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/pbrt-v4/rgbspectrum_aces.cpp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
 ADD_LIBRARY ( pbrt STATIC
+  ${CMAKE_CURRENT_BINARY_DIR}/rgbspectrum_srgb.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/rgbspectrum_dci_p3.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/rgbspectrum_rec2020.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/rgbspectrum_aces.cpp
   ${PBRT_YACC_LEX_SOURCE}
   ${PBRT_CORE_SOURCE}
   ${PBRT_CORE_HEADERS}
@@ -502,6 +584,7 @@ SET ( PBRT_CXX11_FEATURES
   cxx_range_for
   cxx_static_assert
 )
+target_compile_definitions (pbrt PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
 TARGET_COMPILE_FEATURES ( pbrt PRIVATE ${PBRT_CXX11_FEATURES} )
 
 IF (WIN32)
@@ -516,6 +599,8 @@ SET(ALL_PBRT_LIBS
   glog
   Ptex_static
   ${ZLIB_LIBRARY}
+  double-conversion
+  ${OpenCV_LIBS}
 )
 
 # Main renderer
@@ -523,26 +608,42 @@ ADD_EXECUTABLE ( pbrt_exe src/main/pbrt.cpp )
 ADD_SANITIZERS ( pbrt_exe )
 
 SET_TARGET_PROPERTIES ( pbrt_exe PROPERTIES OUTPUT_NAME pbrt )
+target_compile_definitions (pbrt_exe PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
 TARGET_COMPILE_FEATURES ( pbrt_exe PRIVATE ${PBRT_CXX11_FEATURES} )
 TARGET_LINK_LIBRARIES ( pbrt_exe ${ALL_PBRT_LIBS} )
 
 # Tools
 ADD_EXECUTABLE ( bsdftest src/tools/bsdftest.cpp )
 ADD_SANITIZERS ( bsdftest )
+target_compile_definitions (bsdftest PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
 TARGET_COMPILE_FEATURES ( bsdftest PRIVATE ${PBRT_CXX11_FEATURES} )
 TARGET_LINK_LIBRARIES ( bsdftest ${ALL_PBRT_LIBS} )
 
 ADD_EXECUTABLE ( imgtool src/tools/imgtool.cpp )
 ADD_SANITIZERS ( imgtool )
+target_compile_definitions (imgtool PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
 TARGET_COMPILE_FEATURES ( imgtool PRIVATE ${PBRT_CXX11_FEATURES} )
 TARGET_LINK_LIBRARIES ( imgtool ${ALL_PBRT_LIBS} )
 
 ADD_EXECUTABLE ( obj2pbrt src/tools/obj2pbrt.cpp )
+target_compile_definitions (obj2pbrt PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
 TARGET_COMPILE_FEATURES ( obj2pbrt PRIVATE ${PBRT_CXX11_FEATURES} )
 ADD_SANITIZERS ( obj2pbrt )
 
 ADD_EXECUTABLE ( cyhair2pbrt src/tools/cyhair2pbrt.cpp )
 ADD_SANITIZERS ( cyhair2pbrt )
+
+ADD_EXECUTABLE ( precomputealbedo src/statistics/luts/precomputealbedo/main.cpp )
+ADD_SANITIZERS ( precomputealbedo )
+target_compile_definitions (precomputealbedo PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
+TARGET_COMPILE_FEATURES ( precomputealbedo PRIVATE ${PBRT_CXX11_FEATURES} )
+TARGET_LINK_LIBRARIES ( precomputealbedo ${ALL_PBRT_LIBS} )
+
+ADD_EXECUTABLE ( albedojson2dat src/statistics/luts/precomputealbedo/json2cpp/json2dat.cpp )
+ADD_SANITIZERS ( albedojson2dat )
+target_compile_definitions (albedojson2dat PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
+TARGET_COMPILE_FEATURES ( albedojson2dat PRIVATE ${PBRT_CXX11_FEATURES} )
+TARGET_LINK_LIBRARIES ( albedojson2dat ${ALL_PBRT_LIBS} )
 
 # Unit test
 
@@ -553,6 +654,7 @@ FILE ( GLOB PBRT_TEST_SOURCE
 
 ADD_EXECUTABLE ( pbrt_test ${PBRT_TEST_SOURCE} )
 ADD_SANITIZERS ( pbrt_test )
+target_compile_definitions (pbrt_test PRIVATE ${PBRT_DEFINITIONS}) # Copied from pbrt-v4's CMakeLists.txt for its display functions.
 TARGET_COMPILE_FEATURES ( pbrt_test PRIVATE ${PBRT_CXX11_FEATURES} )
 TARGET_LINK_LIBRARIES ( pbrt_test ${ALL_PBRT_LIBS} )
 
@@ -566,6 +668,8 @@ INSTALL ( TARGETS
   imgtool
   obj2pbrt
   cyhair2pbrt
+  precomputealbedo
+  albedojson2dat
   DESTINATION
   bin
   )

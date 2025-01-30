@@ -1,3 +1,7 @@
+This source code contains modifications to the original pbrt source code.
+Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+Original copyright and license (below) remain unaffected.
+
 Copyright (c) 1998-2015, Matt Pharr, Greg Humphreys, and Wenzel Jakob.
 All rights reserved.
 

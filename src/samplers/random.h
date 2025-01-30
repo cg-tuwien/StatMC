@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -46,7 +56,7 @@ namespace pbrt {
 
 class RandomSampler : public Sampler {
   public:
-    RandomSampler(int ns, int seed = 0);
+    RandomSampler(int ns, int seed = 0, int baseSeed = 0);
     void StartPixel(const Point2i &);
     Float Get1D();
     Point2f Get2D();
@@ -54,9 +64,10 @@ class RandomSampler : public Sampler {
 
   private:
     RNG rng;
+    int baseSeed;
 };
 
-Sampler *CreateRandomSampler(const ParamSet &params);
+Sampler *CreateRandomSampler(const ParamSet &params, const int defaultBaseSeed);
 
 }  // namespace pbrt
 

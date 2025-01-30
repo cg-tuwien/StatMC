@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -54,6 +64,43 @@ RGBSpectrum *ReadImageEXR(const std::string &name, int *width,
 
 void WriteImage(const std::string &name, const Float *rgb,
                 const Bounds2i &outputBounds, const Point2i &totalResolution);
+
+template<typename T>
+bool WriteImageBinary(const std::string &filename, const T *x,
+                      const Bounds2i &outputBounds, int channelCount = 1) {
+    Vector2i resolution = outputBounds.Diagonal();
+
+    FILE *fp;
+
+    fp = fopen(filename.c_str(), "wb");
+    if (!fp) {
+        Error("Unable to open output binary file \"%s\"", filename.c_str());
+        return false;
+    }
+
+    // Write the width and height; they must be positive.
+    if (fprintf(fp, "%d %d %d\n", resolution.x, resolution.y, channelCount) < 0) goto fail;
+
+    // Write the data from bottom left to upper right as specified by
+    // http://netpbm.sourceforge.net/doc/pfm.html .
+    // The raster is a sequence of pixels, packed one after another, with no
+    // delimiters of any kind. They are grouped by row, with the pixels in each
+    // row ordered left to right and the rows ordered bottom to top.
+    for (int j = resolution.y - 1; j >= 0; j--) {
+        const T *scanline = &x[j * resolution.x * channelCount];
+        if (fwrite(scanline, sizeof(T), resolution.x * channelCount, fp) <
+            (size_t)(resolution.x * channelCount))
+            goto fail;
+    }
+
+    fclose(fp);
+    return true;
+
+fail:
+    Error("Error writing binary file \"%s\"", filename.c_str());
+    fclose(fp);
+    return false;
+}
 
 }  // namespace pbrt
 

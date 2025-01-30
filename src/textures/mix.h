@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -57,6 +67,11 @@ class MixTexture : public Texture<T> {
     T Evaluate(const SurfaceInteraction &si) const {
         T t1 = tex1->Evaluate(si), t2 = tex2->Evaluate(si);
         Float amt = amount->Evaluate(si);
+        return (1 - amt) * t1 + amt * t2;
+    }
+    T Evaluate() const {
+        T t1 = tex1->Evaluate(), t2 = tex2->Evaluate();
+        Float amt = amount->Evaluate();
         return (1 - amt) * t1 + amt * t2;
     }
 

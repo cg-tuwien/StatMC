@@ -31,6 +31,16 @@
  */
 
 /*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
+/*
 
 Implementation of the Disney BSDF with Subsurface Scattering, as described in:
 http://blog.selfshadow.com/publications/s2015-shading-course/burley/s2015_pbs_disney_bsdf_notes.pdf.
@@ -94,8 +104,8 @@ class DisneyDiffuse : public BxDF {
     DisneyDiffuse(const Spectrum &R)
         : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE)), R(R) {}
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
-    Spectrum rho(const Vector3f &, int, const Point2f *) const { return R; }
-    Spectrum rho(int, const Point2f *, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(const Vector3f &, int, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(int, const Point2f *, const Point2f *) const { return R; }
     std::string ToString() const;
 
   private:
@@ -127,8 +137,8 @@ class DisneyFakeSS : public BxDF {
           R(R),
           roughness(roughness) {}
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
-    Spectrum rho(const Vector3f &, int, const Point2f *) const { return R; }
-    Spectrum rho(int, const Point2f *, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(const Vector3f &, int, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(int, const Point2f *, const Point2f *) const { return R; }
     std::string ToString() const;
 
   private:
@@ -169,8 +179,8 @@ class DisneyRetro : public BxDF {
           R(R),
           roughness(roughness) {}
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
-    Spectrum rho(const Vector3f &, int, const Point2f *) const { return R; }
-    Spectrum rho(int, const Point2f *, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(const Vector3f &, int, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(int, const Point2f *, const Point2f *) const { return R; }
     std::string ToString() const;
 
   private:
@@ -205,8 +215,8 @@ class DisneySheen : public BxDF {
     DisneySheen(const Spectrum &R)
         : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE)), R(R) {}
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
-    Spectrum rho(const Vector3f &, int, const Point2f *) const { return R; }
-    Spectrum rho(int, const Point2f *, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(const Vector3f &, int, const Point2f *) const { return R; }
+    Spectrum GetAlbedo(int, const Point2f *, const Point2f *) const { return R; }
     std::string ToString() const;
 
   private:
@@ -586,7 +596,12 @@ void DisneyMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     }
 }
 
-DisneyMaterial *CreateDisneyMaterial(const TextureParams &mp) {
+RGBSpectrum DisneyMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    return si->bsdf->rho(si->wo);
+};
+
+DisneyMaterial *CreateDisneyMaterial(const TextureParams &mp,
+                                     const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> color =
         mp.GetSpectrumTexture("color", Spectrum(0.5f));
     std::shared_ptr<Texture<Float>> metallic =
@@ -619,7 +634,7 @@ DisneyMaterial *CreateDisneyMaterial(const TextureParams &mp) {
     return new DisneyMaterial(color, metallic, eta, roughness, specularTint,
                               anisotropic, sheen, sheenTint, clearcoat,
                               clearcoatGloss, specTrans, scatterDistance, thin,
-                              flatness, diffTrans, bumpMap);
+                              flatness, diffTrans, bumpMap, id);
 }
 
 }  // namespace pbrt

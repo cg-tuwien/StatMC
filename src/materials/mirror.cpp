@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/mirror.cpp*
 #include "materials/mirror.h"
@@ -55,12 +65,17 @@ void MirrorMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
             R, ARENA_ALLOC(arena, FresnelNoOp)()));
 }
 
-MirrorMaterial *CreateMirrorMaterial(const TextureParams &mp) {
+RGBSpectrum MirrorMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    return Kr->Evaluate(*si).Clamp();
+}
+
+MirrorMaterial *CreateMirrorMaterial(const TextureParams &mp,
+                                     const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> Kr =
         mp.GetSpectrumTexture("Kr", Spectrum(0.9f));
     std::shared_ptr<Texture<Float>> bumpMap =
         mp.GetFloatTextureOrNull("bumpmap");
-    return new MirrorMaterial(Kr, bumpMap);
+    return new MirrorMaterial(Kr, bumpMap, id);
 }
 
 }  // namespace pbrt

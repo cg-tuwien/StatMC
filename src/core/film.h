@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -45,6 +55,7 @@
 #include "filter.h"
 #include "stats.h"
 #include "parallel.h"
+#include "statistics/buffer.h"
 
 namespace pbrt {
 
@@ -56,30 +67,8 @@ struct FilmTilePixel {
 
 // Film Declarations
 class Film {
-  public:
-    // Film Public Methods
-    Film(const Point2i &resolution, const Bounds2f &cropWindow,
-         std::unique_ptr<Filter> filter, Float diagonal,
-         const std::string &filename, Float scale,
-         Float maxSampleLuminance = Infinity);
-    Bounds2i GetSampleBounds() const;
-    Bounds2f GetPhysicalExtent() const;
-    std::unique_ptr<FilmTile> GetFilmTile(const Bounds2i &sampleBounds);
-    void MergeFilmTile(std::unique_ptr<FilmTile> tile);
-    void SetImage(const Spectrum *img) const;
-    void AddSplat(const Point2f &p, Spectrum v);
-    void WriteImage(Float splatScale = 1);
-    void Clear();
-
-    // Film Public Data
-    const Point2i fullResolution;
-    const Float diagonal;
-    std::unique_ptr<Filter> filter;
-    const std::string filename;
-    Bounds2i croppedPixelBounds;
-
   private:
-    // Film Private Data
+    // Film Private Data (must come before public data due to member FilmBuffer buffer)
     struct Pixel {
         Pixel() { xyz[0] = xyz[1] = xyz[2] = filterWeightSum = 0; }
         Float xyz[3];
@@ -87,9 +76,18 @@ class Film {
         AtomicFloat splatXYZ[3];
         Float pad;
     };
-    std::unique_ptr<Pixel[]> pixels;
-    static PBRT_CONSTEXPR int filterTableWidth = 16;
-    Float filterTable[filterTableWidth * filterTableWidth];
+    struct FilmBuffer : public Buffer {
+        FilmBuffer(
+            const std::string name,
+            const unsigned short width,
+            const unsigned short height,
+            const unsigned int area
+        ) : Buffer(name, Mat3(height, width)),
+            pixels(std::make_unique<Pixel[]>(area))
+        {}
+
+        std::unique_ptr<Pixel[]> pixels;
+    };
     std::mutex mutex;
     const Float scale;
     const Float maxSampleLuminance;
@@ -100,8 +98,41 @@ class Film {
         int width = croppedPixelBounds.pMax.x - croppedPixelBounds.pMin.x;
         int offset = (p.x - croppedPixelBounds.pMin.x) +
                      (p.y - croppedPixelBounds.pMin.y) * width;
-        return pixels[offset];
+        return buffer.pixels[offset];
     }
+
+  public:
+    // Film Public Methods
+    Film(const Point2i &resolution, const Bounds2f &cropWindow,
+         std::unique_ptr<Filter> filter, Float diagonal,
+         const std::string &filename, Float scale,
+         Float maxSampleLuminance = Infinity);
+    Bounds2i GetSampleBounds() const;
+    Bounds2i GetActualTileBounds(const Bounds2i &tileBounds) const;
+    Bounds2f GetPhysicalExtent() const;
+    std::unique_ptr<FilmTile> GetFilmTile(const Bounds2i &sampleBounds);
+    void MergeFilmTile(std::shared_ptr<FilmTile> tile);
+    void SetImage(const Spectrum *img) const;
+    void AddSplat(const Point2f &p, Spectrum v);
+    void UpdateImage(const Float splatScale = 1);
+    void WriteImage(const Float splatScale = 1);
+    virtual void Clear(); // virtual keyword makes Film polymorphic
+
+    // Film Public Data
+    const Point2i fullResolution;
+    const Float diagonal;
+    std::shared_ptr<Filter> filter;
+    const std::string filename;
+    Bounds2i croppedPixelBounds;
+    unsigned short width;
+    unsigned short height;
+    unsigned int area;
+    FilmBuffer buffer;
+
+  protected:
+    // Film Protected Data
+    static PBRT_CONSTEXPR int filterTableWidth = 16;
+    Float filterTable[filterTableWidth * filterTableWidth];
 };
 
 class FilmTile {

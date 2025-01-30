@@ -31,6 +31,16 @@
  */
 
 /*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
+/*
 
 See the writeup "The Implementation of a Hair Scattering Model" at
 http://pbrt.org/hair.pdf for a description of the implementation here.
@@ -49,6 +59,7 @@ http://pbrt.org/hair.pdf for a description of the implementation here.
 #include "material.h"
 #include "pbrt.h"
 #include "reflection.h"
+#include "spectrum.h"
 #include <array>
 
 namespace pbrt {
@@ -64,15 +75,9 @@ class HairMaterial : public Material {
                  const std::shared_ptr<Texture<Float>> &eta,
                  const std::shared_ptr<Texture<Float>> &beta_m,
                  const std::shared_ptr<Texture<Float>> &beta_n,
-                 const std::shared_ptr<Texture<Float>> &alpha)
-        : sigma_a(sigma_a),
-          color(color),
-          eumelanin(eumelanin),
-          pheomelanin(pheomelanin),
-          eta(eta),
-          beta_m(beta_m),
-          beta_n(beta_n),
-          alpha(alpha) {}
+                 const std::shared_ptr<Texture<Float>> &alpha,
+                 const unsigned long long id = 0);
+    ~HairMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
@@ -82,9 +87,26 @@ class HairMaterial : public Material {
     std::shared_ptr<Texture<Spectrum>> sigma_a, color;
     std::shared_ptr<Texture<Float>> eumelanin, pheomelanin, eta;
     std::shared_ptr<Texture<Float>> beta_m, beta_n, alpha;
+
+    // HairMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
+
+    RGBSpectrum GetAlbedo(SurfaceInteraction *si) const;
 };
 
-HairMaterial *CreateHairMaterial(const TextureParams &mp);
+HairMaterial *CreateHairMaterial(const TextureParams &mp,
+                                 const unsigned long long id = 0);
 
 // HairBSDF Constants
 static const int pMax = 3;

@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,7 @@
 // materials/glass.h*
 #include "pbrt.h"
 #include "material.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -54,14 +65,9 @@ class GlassMaterial : public Material {
                   const std::shared_ptr<Texture<Float>> &vRoughness,
                   const std::shared_ptr<Texture<Float>> &index,
                   const std::shared_ptr<Texture<Float>> &bumpMap,
-                  bool remapRoughness)
-        : Kr(Kr),
-          Kt(Kt),
-          uRoughness(uRoughness),
-          vRoughness(vRoughness),
-          index(index),
-          bumpMap(bumpMap),
-          remapRoughness(remapRoughness) {}
+                  bool remapRoughness,
+                  const unsigned long long id = 0);
+    ~GlassMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
@@ -73,9 +79,24 @@ class GlassMaterial : public Material {
     std::shared_ptr<Texture<Float>> index;
     std::shared_ptr<Texture<Float>> bumpMap;
     bool remapRoughness;
+
+    // GlassMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
 };
 
-GlassMaterial *CreateGlassMaterial(const TextureParams &mp);
+GlassMaterial *CreateGlassMaterial(const TextureParams &mp,
+                                   const unsigned long long id = 0);
 
 }  // namespace pbrt
 

@@ -1,0 +1,30 @@
+Transform [-0.000120149158703 -0.00540833472859 -0.999985367633 0  0.0222097502109 0.999738697098 -0.0054096691541 0  0.999753325856 -0.0222100751969 -4.28612223838e-16 0  1.46547868843 65.9663319345 1419.7722128 1]
+Camera "perspective" "float fov" [22.2753333373]
+   "float focaldistance" [1500] "float lensradius" [.5]
+
+Film "image" "string filename" ["frame25.pfm"]
+#    "integer xresolution" [1920] "integer yresolution" [840]
+#   "integer xresolution" [1440] "integer yresolution" [630]
+   "integer xresolution" [1280] "integer yresolution" [720]
+#   "integer xresolution" [960] "integer yresolution" [420]
+#   "integer xresolution" [480] "integer yresolution" [210]
+#   "float scale" .5
+# imgtool convert -bloomlevel 1 -bloomscale .05
+
+#Sampler "sobol" "integer pixelsamples" 2048
+#Integrator "bdpt" "integer maxdepth" 7
+Include "../_active.pbrt"
+
+ExtraParams "extras"
+    "integer integratormaxdepth" [7]
+
+WorldBegin
+
+# Default Material
+Material "matte" "rgb Kd" [.3 .3 .3]
+
+Include "textures.pbrt"
+Include "materials.pbrt"
+Include "geometry-f25.pbrt"
+
+WorldEnd

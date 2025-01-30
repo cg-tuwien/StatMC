@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -55,20 +65,36 @@ class MetalMaterial : public Material {
                   const std::shared_ptr<Texture<Float>> &urough,
                   const std::shared_ptr<Texture<Float>> &vrough,
                   const std::shared_ptr<Texture<Float>> &bump,
-                  bool remapRoughness);
+                  bool remapRoughness,
+                  const unsigned long long id = 0);
+    ~MetalMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
-
   private:
     // MetalMaterial Private Data
     std::shared_ptr<Texture<Spectrum>> eta, k;
     std::shared_ptr<Texture<Float>> roughness, uRoughness, vRoughness;
     std::shared_ptr<Texture<Float>> bumpMap;
     bool remapRoughness;
+
+    // MetalMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
 };
 
-MetalMaterial *CreateMetalMaterial(const TextureParams &mp);
+MetalMaterial *CreateMetalMaterial(const TextureParams &mp,
+                                   const unsigned long long id = 0);
 
 }  // namespace pbrt
 

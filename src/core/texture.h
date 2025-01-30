@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -136,7 +146,9 @@ class Texture {
   public:
     // Texture Interface
     virtual T Evaluate(const SurfaceInteraction &) const = 0;
+    virtual T Evaluate() const = 0;
     virtual ~Texture() {}
+    virtual bool IsConstant() const { return false; }
 };
 
 Float Lanczos(Float, Float tau = 2);

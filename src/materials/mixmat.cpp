@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/mixmat.cpp*
 #include "materials/mixmat.h"
@@ -63,12 +73,20 @@ void MixMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
         si->bsdf->Add(ARENA_ALLOC(arena, ScaledBxDF)(si2.bsdf->bxdfs[i], s2));
 }
 
+RGBSpectrum MixMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    Spectrum s1 = scale->Evaluate(*si).Clamp();
+    Spectrum s2 = (Spectrum(1.f) - s1).Clamp();
+
+    return s1 * m1->GetAlbedo(si) + s2 * m2->GetAlbedo(si);
+}
+
 MixMaterial *CreateMixMaterial(const TextureParams &mp,
                                const std::shared_ptr<Material> &m1,
-                               const std::shared_ptr<Material> &m2) {
+                               const std::shared_ptr<Material> &m2,
+                               const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> scale =
         mp.GetSpectrumTexture("amount", Spectrum(0.5f));
-    return new MixMaterial(m1, m2, scale);
+    return new MixMaterial(m1, m2, scale, id);
 }
 
 }  // namespace pbrt

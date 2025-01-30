@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,7 @@
 // materials/disney.h*
 #include "material.h"
 #include "pbrt.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -63,8 +74,10 @@ class DisneyMaterial : public Material {
                    bool thin,
                    const std::shared_ptr<Texture<Float>> &flatness,
                    const std::shared_ptr<Texture<Float>> &diffTrans,
-                   const std::shared_ptr<Texture<Float>> &bumpMap)
-        : color(color),
+                   const std::shared_ptr<Texture<Float>> &bumpMap,
+                   const unsigned long long id = 0)
+        : Material(id),
+          color(color),
           metallic(metallic),
           eta(eta),
           roughness(roughness),
@@ -83,6 +96,7 @@ class DisneyMaterial : public Material {
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
+    RGBSpectrum GetAlbedo(SurfaceInteraction *si) const;
 
   private:
     // DisneyMaterial Private Data
@@ -96,7 +110,8 @@ class DisneyMaterial : public Material {
     std::shared_ptr<Texture<Float>> flatness, diffTrans, bumpMap;
 };
 
-DisneyMaterial *CreateDisneyMaterial(const TextureParams &mp);
+DisneyMaterial *CreateDisneyMaterial(const TextureParams &mp,
+                                     const unsigned long long id = 0);
 
 }  // namespace pbrt
 

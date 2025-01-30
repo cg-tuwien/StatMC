@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -55,6 +65,7 @@ class Integrator {
     // Integrator Interface
     virtual ~Integrator();
     virtual void Render(const Scene &scene) = 0;
+    virtual void Denoise(const Scene &scene) {};
 };
 
 Spectrum UniformSampleAllLights(const Interaction &it, const Scene &scene,
@@ -82,10 +93,10 @@ class SamplerIntegrator : public Integrator {
                       const Bounds2i &pixelBounds)
         : camera(camera), sampler(sampler), pixelBounds(pixelBounds) {}
     virtual void Preprocess(const Scene &scene, Sampler &sampler) {}
-    void Render(const Scene &scene);
+    virtual void Render(const Scene &scene);
     virtual Spectrum Li(const RayDifferential &ray, const Scene &scene,
                         Sampler &sampler, MemoryArena &arena,
-                        int depth = 0) const = 0;
+                        int depth = 0) const;
     Spectrum SpecularReflect(const RayDifferential &ray,
                              const SurfaceInteraction &isect,
                              const Scene &scene, Sampler &sampler,
@@ -98,9 +109,6 @@ class SamplerIntegrator : public Integrator {
   protected:
     // SamplerIntegrator Protected Data
     std::shared_ptr<const Camera> camera;
-
-  private:
-    // SamplerIntegrator Private Data
     std::shared_ptr<Sampler> sampler;
     const Bounds2i pixelBounds;
 };

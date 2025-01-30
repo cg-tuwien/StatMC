@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -146,6 +156,7 @@ enum class Prof {
     MIPMapCreation,
 
     IntegratorRender,
+    StatPathRender,
     SamplerIntegratorLi,
     SPPMCameraPass,
     SPPMGridConstruction,
@@ -186,7 +197,11 @@ enum class Prof {
     TexFiltTrilerp,
     TexFiltEWA,
     TexFiltPtex,
-    NumProfCategories
+    MergeTile,
+    MergeBufferTiles,
+    AddSample,
+    ReduceLUT,
+    NumProfCategories,
 };
 
 static_assert((int)Prof::NumProfCategories <= 64,
@@ -201,6 +216,7 @@ static const char *ProfNames[] = {
     "MIP map generation",
 
     "Integrator::Render()",
+    "StatPath::Render()",
     "SamplerIntegrator::Li()",
     "SPPM camera pass",
     "SPPM grid construction",
@@ -241,6 +257,10 @@ static const char *ProfNames[] = {
     "MIPMap::Lookup() (trilinear)",
     "MIPMap::Lookup() (EWA)",
     "Ptex lookup",
+    "MultiFilmBuffer::MergeTile()",
+    "MultiFilm::MergeBufferTiles()",
+    "MultiFilmTile::AddSample()",
+    "Material::ReduceLUT",
 };
 
 static_assert((int)Prof::NumProfCategories ==

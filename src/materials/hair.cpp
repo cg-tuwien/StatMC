@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 // materials/hair.cpp*
 #include <array>
 #include <numeric>
@@ -41,6 +51,7 @@
 #include "spectrum.h"
 #include "texture.h"
 #include "textures/constant.h"
+#include "statistics/luts/hairalbedo.h"
 
 namespace pbrt {
 
@@ -137,6 +148,51 @@ static Float SampleTrimmedLogistic(Float u, Float s, Float a, Float b) {
 }
 
 // HairMaterial Method Definitions
+HairMaterial::HairMaterial(
+    const std::shared_ptr<Texture<Spectrum>> &sigma_a,
+    const std::shared_ptr<Texture<Spectrum>> &color,
+    const std::shared_ptr<Texture<Float>> &eumelanin,
+    const std::shared_ptr<Texture<Float>> &pheomelanin,
+    const std::shared_ptr<Texture<Float>> &eta,
+    const std::shared_ptr<Texture<Float>> &beta_m,
+    const std::shared_ptr<Texture<Float>> &beta_n,
+    const std::shared_ptr<Texture<Float>> &alpha,
+    const unsigned long long id
+) : Material(id),
+    sigma_a(sigma_a),
+    color(color),
+    eumelanin(eumelanin),
+    pheomelanin(pheomelanin),
+    eta(eta),
+    beta_m(beta_m),
+    beta_n(beta_n),
+    alpha(alpha)
+{
+    AllocateLUT(
+        &hairAlbedoLUT[0],
+         hairAlbedoLUTNDims,
+        &hairAlbedoLUTMaxIndices[0],
+        &hairAlbedoLUTOffsets[0],
+         albedoLUT,           // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTNDims,
+         albedoLUTMaxIndices, // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTOffsets,    // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTRGBOffsets  // Allocated with new
+    );
+}
+
+HairMaterial::~HairMaterial() {
+    DeallocateLUT(
+        &hairAlbedoLUT[0],
+        &hairAlbedoLUTMaxIndices[0],
+        &hairAlbedoLUTOffsets[0],
+         albedoLUT,
+         albedoLUTMaxIndices,
+         albedoLUTOffsets,
+         albedoLUTRGBOffsets
+    );
+}
+
 void HairMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                               MemoryArena &arena,
                                               TransportMode mode,
@@ -166,7 +222,106 @@ void HairMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     si->bsdf->Add(ARENA_ALLOC(arena, HairBSDF)(h, e, sig_a, bm, bn, a));
 }
 
-HairMaterial *CreateHairMaterial(const TextureParams &mp) {
+void HairMaterial::GetLUTReducibilities(
+    bool &reducible,
+    bool *reducibilities,
+    unsigned char &nDims
+) const {
+    if ((sigma_a && sigma_a->IsConstant()) ||
+        (!sigma_a && color && color->IsConstant()) ||
+        (!color && !sigma_a && (!eumelanin   || eumelanin->IsConstant()) &&
+                               (!pheomelanin || pheomelanin->IsConstant()))) {
+        LUT_SET_REDUCIBILITY(1)
+    }
+    if (beta_m->IsConstant()) {
+        LUT_SET_REDUCIBILITY(2)
+    }
+    if (beta_n->IsConstant()) {
+        LUT_SET_REDUCIBILITY(3)
+    }
+}
+
+void HairMaterial::GetLUTReductionIndices(
+    std::vector<std::vector<Float>> &indices
+) const {
+    if ((sigma_a && sigma_a->IsConstant()) ||
+        (!sigma_a && color && color->IsConstant()) ||
+        (!color && !sigma_a && (!eumelanin   || eumelanin->IsConstant()) &&
+                               (!pheomelanin || pheomelanin->IsConstant()))) {
+        Spectrum sig_a;
+        if (sigma_a)
+            sig_a = sigma_a->Evaluate();
+        else if (color) {
+            Spectrum c = color->Evaluate().Clamp();
+            sig_a = HairBSDF::SigmaAFromReflectance(c, beta_n->Evaluate());
+        } else {
+            CHECK(eumelanin || pheomelanin);
+            sig_a = HairBSDF::SigmaAFromConcentration(
+                std::max(Float(0), eumelanin ? eumelanin->Evaluate() : 0),
+                std::max(Float(0), pheomelanin ? pheomelanin->Evaluate() : 0)
+            );
+        }
+
+        const RGBSpectrum sigmaAMapped = InverseLerp(sig_a, RGBSpectrum(Epsilon), RGBSpectrum(1.f)).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(1, sigmaAMapped)
+    }
+    if (beta_m->IsConstant()) {
+        const Float betaMMapped = Clamp(InverseLerp(beta_m->Evaluate(), Epsilon, 1.f), 0.f, 1.f);
+        LUT_SET_INDICES(2, betaMMapped)
+    }
+    if (beta_n->IsConstant()) {
+        const Float betaNMapped = Clamp(InverseLerp(beta_n->Evaluate(), Epsilon, 1.f), 0.f, 1.f);
+        LUT_SET_INDICES(3, betaNMapped)
+    }
+}
+
+void HairMaterial::GetLUTIndices(
+    SurfaceInteraction *si,
+    std::vector<std::vector<Float>> &indices
+) const {
+    const Float cosThetaMapped = Clamp(InverseLerp(Dot(si->wo, si->shading.n), CosEpsilon, 1.f), 0.f, 1.f); // Transform wo.z to local space
+    LUT_SET_INDICES(0, cosThetaMapped)
+
+    unsigned char i = 1;
+    if (!((sigma_a && sigma_a->IsConstant()) ||
+          (!sigma_a && color && color->IsConstant()) ||
+          (!color && !sigma_a && (!eumelanin   || eumelanin->IsConstant()) &&
+                                 (!pheomelanin || pheomelanin->IsConstant())))) {
+        Spectrum sig_a;
+        if (sigma_a)
+            sig_a = sigma_a->Evaluate(*si);
+        else if (color) {
+            Spectrum c = color->Evaluate(*si).Clamp();
+            sig_a = HairBSDF::SigmaAFromReflectance(c, beta_n->Evaluate(*si));
+        } else {
+            CHECK(eumelanin || pheomelanin);
+            sig_a = HairBSDF::SigmaAFromConcentration(
+                std::max(Float(0), eumelanin ? eumelanin->Evaluate(*si) : 0),
+                std::max(Float(0), pheomelanin ? pheomelanin->Evaluate(*si) : 0)
+            );
+        }
+
+        const RGBSpectrum sigmaAMapped = InverseLerp(sig_a, RGBSpectrum(Epsilon), RGBSpectrum(1.f)).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, sigmaAMapped)
+        i++;
+    }
+    if (!beta_m->IsConstant()) {
+        const Float betaMMapped = Clamp(InverseLerp(beta_m->Evaluate(*si), Epsilon, 1.f), 0.f, 1.f);
+        LUT_SET_INDICES(i, betaMMapped)
+        i++;
+    }
+    if (!beta_n->IsConstant()) {
+        const Float betaNMapped = Clamp(InverseLerp(beta_n->Evaluate(*si), Epsilon, 1.f), 0.f, 1.f);
+        LUT_SET_INDICES(i, betaNMapped)
+    }
+}
+
+RGBSpectrum HairMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    return si->bsdf->rho(si->wo);
+};
+
+HairMaterial *CreateHairMaterial(const TextureParams &mp,
+                                 const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> sigma_a =
         mp.GetSpectrumTextureOrNull("sigma_a");
     std::shared_ptr<Texture<Spectrum>> color =
@@ -220,7 +375,7 @@ HairMaterial *CreateHairMaterial(const TextureParams &mp) {
     std::shared_ptr<Texture<Float>> alpha = mp.GetFloatTexture("alpha", 2.f);
 
     return new HairMaterial(sigma_a, color, eumelanin, pheomelanin, eta, beta_m,
-                            beta_n, alpha);
+                            beta_n, alpha, id);
 }
 
 // HairBSDF Method Definitions

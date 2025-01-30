@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -91,6 +101,8 @@
 #define ALLOCA(TYPE, COUNT) (TYPE *) alloca((COUNT) * sizeof(TYPE))
 
 namespace pbrt {
+
+//#define PBRT_STATISTICS_FULL_LOOKUPS
 
 // Global Forward Declarations
 class Scene;
@@ -159,6 +171,7 @@ class Distribution2D;
 #else
   typedef float Float;
 #endif  // PBRT_FLOAT_AS_DOUBLE
+#define PBRT_WRITE_FLOAT_EXR
 class RNG;
 class ProgressReporter;
 class MemoryArena;
@@ -182,6 +195,12 @@ struct Options {
     std::string imageFile;
     // x0, x1, y0, y1
     Float cropWindow[2][2];
+    bool writeImages = false;
+    bool displayImages = false;
+    std::string displayServer;
+    int baseSeed = 0;
+    bool denoise = false;
+    bool warmUp = false;
 };
 
 extern Options PbrtOptions;
@@ -201,7 +220,9 @@ static PBRT_CONSTEXPR Float Infinity = std::numeric_limits<Float>::infinity();
 static PBRT_CONSTEXPR Float MachineEpsilon =
     std::numeric_limits<Float>::epsilon() * 0.5;
 #endif
+static PBRT_CONSTEXPR Float Epsilon = 0.0001f;
 static PBRT_CONSTEXPR Float ShadowEpsilon = 0.0001f;
+static PBRT_CONSTEXPR Float CosEpsilon = 0.0001f;
 static PBRT_CONSTEXPR Float Pi = 3.14159265358979323846;
 static PBRT_CONSTEXPR Float InvPi = 0.31830988618379067154;
 static PBRT_CONSTEXPR Float Inv2Pi = 0.15915494309189533577;
@@ -209,6 +230,8 @@ static PBRT_CONSTEXPR Float Inv4Pi = 0.07957747154594766788;
 static PBRT_CONSTEXPR Float PiOver2 = 1.57079632679489661923;
 static PBRT_CONSTEXPR Float PiOver4 = 0.78539816339744830961;
 static PBRT_CONSTEXPR Float Sqrt2 = 1.41421356237309504880;
+static PBRT_CONSTEXPR Float TrowbridgeAlphaMin = 0.0472695;
+static PBRT_CONSTEXPR Float TrowbridgeAlphaMax = 1.62142;
 #if defined(PBRT_IS_MSVC)
 #define alloca _alloca
 #endif
@@ -414,7 +437,13 @@ int FindInterval(int size, const Predicate &pred) {
     return Clamp(first - 1, 0, size - 2);
 }
 
-inline Float Lerp(Float t, Float v1, Float v2) { return (1 - t) * v1 + t * v2; }
+inline Float Lerp(Float t, Float v1, Float v2) {
+    return (1 - t) * v1 + t * v2;
+}
+
+inline Float InverseLerp(Float value, Float v1, Float v2) {
+    return (value - v1) / (v2 - v1);
+}
 
 inline bool Quadratic(Float a, Float b, Float c, Float *t0, Float *t1) {
     // Find quadratic discriminant

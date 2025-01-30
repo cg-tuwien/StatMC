@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -55,11 +65,11 @@ class PathIntegrator : public SamplerIntegrator {
                    const std::string &lightSampleStrategy = "spatial");
 
     void Preprocess(const Scene &scene, Sampler &sampler);
-    Spectrum Li(const RayDifferential &ray, const Scene &scene,
-                Sampler &sampler, MemoryArena &arena, int depth) const;
+    virtual Spectrum Li(const RayDifferential &ray, const Scene &scene,
+                        Sampler &sampler, MemoryArena &arena, int depth) const;
 
-  private:
-    // PathIntegrator Private Data
+  protected:
+    // PathIntegrator Protected Data
     const int maxDepth;
     const Float rrThreshold;
     const std::string lightSampleStrategy;

@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // samplers/random.cpp*
 #include "samplers/random.h"
@@ -39,7 +49,7 @@
 
 namespace pbrt {
 
-RandomSampler::RandomSampler(int ns, int seed) : Sampler(ns), rng(seed) {}
+RandomSampler::RandomSampler(int ns, int seed, int baseSeed) : Sampler(ns), rng(seed), baseSeed(baseSeed) {}
 
 Float RandomSampler::Get1D() {
     ProfilePhase _(Prof::GetSample);
@@ -55,7 +65,7 @@ Point2f RandomSampler::Get2D() {
 
 std::unique_ptr<Sampler> RandomSampler::Clone(int seed) {
     RandomSampler *rs = new RandomSampler(*this);
-    rs->rng.SetSequence(seed);
+    rs->rng.SetSequence((baseSeed + 1) * (seed + 1));
     return std::unique_ptr<Sampler>(rs);
 }
 
@@ -71,9 +81,10 @@ void RandomSampler::StartPixel(const Point2i &p) {
     Sampler::StartPixel(p);
 }
 
-Sampler *CreateRandomSampler(const ParamSet &params) {
+Sampler *CreateRandomSampler(const ParamSet &params, const int defaultBaseSeed) {
     int ns = params.FindOneInt("pixelsamples", 4);
-    return new RandomSampler(ns);
+    int baseSeed = params.FindOneInt("baseseed", defaultBaseSeed);
+    return new RandomSampler(ns, 0, baseSeed);
 }
 
 }  // namespace pbrt

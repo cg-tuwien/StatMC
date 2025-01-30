@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -189,6 +199,8 @@ class BSDF {
                  BxDFType flags = BSDF_ALL) const;
     Spectrum rho(const Vector3f &wo, int nSamples, const Point2f *samples,
                  BxDFType flags = BSDF_ALL) const;
+    Spectrum rho(const Vector3f &wo,
+                 BxDFType flags = BSDF_ALL) const;
     Spectrum Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
                       Float *pdf, BxDFType type = BSDF_ALL,
                       BxDFType *sampledType = nullptr) const;
@@ -210,6 +222,10 @@ class BSDF {
     static PBRT_CONSTEXPR int MaxBxDFs = 8;
     BxDF *bxdfs[MaxBxDFs];
     friend class MixMaterial;
+
+    // Taken from pbrt-v4:src/pbrt/cpu/integrators.cpp
+    static PBRT_CONSTEXPR int nRhoSamples = 16;
+    static const Point2f uRho[nRhoSamples];
 };
 
 inline std::ostream &operator<<(std::ostream &os, const BSDF &bsdf) {

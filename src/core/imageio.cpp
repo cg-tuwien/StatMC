@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 // core/imageio.cpp*
 #include "imageio.h"
 #include "ext/lodepng.h"
@@ -40,12 +50,22 @@
 #include <ImfRgba.h>
 #include <ImfRgbaFile.h>
 
+#ifdef PBRT_WRITE_FLOAT_EXR
+  #include <ImfOutputFile.h>
+  #include <ImfChannelList.h>
+#endif
+
 namespace pbrt {
 
 // ImageIO Local Declarations
+#ifndef PBRT_WRITE_FLOAT_EXR
 static void WriteImageEXR(const std::string &name, const Float *pixels,
                           int xRes, int yRes, int totalXRes, int totalYRes,
                           int xOffset, int yOffset);
+#else
+static void WriteImageEXR(const std::string &name, const Float *pixels,
+                          int xRes, int yRes);
+#endif
 static void WriteImageTGA(const std::string &name, const uint8_t *pixels,
                           int xRes, int yRes, int totalXRes, int totalYRes,
                           int xOffset, int yOffset);
@@ -82,9 +102,13 @@ void WriteImage(const std::string &name, const Float *rgb,
                 const Bounds2i &outputBounds, const Point2i &totalResolution) {
     Vector2i resolution = outputBounds.Diagonal();
     if (HasExtension(name, ".exr")) {
-        WriteImageEXR(name, rgb, resolution.x, resolution.y, totalResolution.x,
-                      totalResolution.y, outputBounds.pMin.x,
-                      outputBounds.pMin.y);
+#ifndef PBRT_WRITE_FLOAT_EXR
+        WriteImageEXR(name, rgb, resolution.x, resolution.y,
+                      totalResolution.x, totalResolution.y,
+                      outputBounds.pMin.x, outputBounds.pMin.y);
+#else
+        WriteImageEXR(name, rgb, resolution.x, resolution.y);
+#endif
     } else if (HasExtension(name, ".pfm")) {
         WriteImagePFM(name, rgb, resolution.x, resolution.y);
     } else if (HasExtension(name, ".tga") || HasExtension(name, ".png")) {
@@ -161,6 +185,7 @@ RGBSpectrum *ReadImageEXR(const std::string &name, int *width, int *height,
     return NULL;
 }
 
+#ifndef PBRT_WRITE_FLOAT_EXR
 static void WriteImageEXR(const std::string &name, const Float *pixels,
                           int xRes, int yRes, int totalXRes, int totalYRes,
                           int xOffset, int yOffset) {
@@ -187,6 +212,49 @@ static void WriteImageEXR(const std::string &name, const Float *pixels,
 
     delete[] hrgba;
 }
+#else
+static void WriteImageEXR(const std::string &name, const Float *pixels,
+                          int xRes, int yRes) {
+    using namespace Imf;
+    using namespace Imath;
+
+    float *rPixels = new float[xRes * yRes];
+    float *gPixels = new float[xRes * yRes];
+    float *bPixels = new float[xRes * yRes];
+    for (int i = 0; i < xRes * yRes; ++i) {
+        rPixels[i] = pixels[3 * i];
+        gPixels[i] = pixels[3 * i + 1];
+        bPixels[i] = pixels[3 * i + 2];
+    }
+
+    try {
+        // https://www.openexr.com/ReadingAndWritingImageFiles.pdf
+        Header header(xRes, yRes);
+        header.channels().insert("R", Channel(FLOAT));
+        header.channels().insert("G", Channel(FLOAT));
+        header.channels().insert("B", Channel(FLOAT));
+        OutputFile file(name.c_str(), header);
+        FrameBuffer frameBuffer;
+        frameBuffer.insert("R", Slice(FLOAT, (char *)rPixels,
+                                      sizeof(*rPixels) * 1,
+                                      sizeof(*rPixels) * xRes));
+        frameBuffer.insert("G", Slice(FLOAT, (char *)gPixels,
+                                      sizeof(*gPixels) * 1,
+                                      sizeof(*gPixels) * xRes));
+        frameBuffer.insert("B", Slice(FLOAT, (char *)bPixels,
+                                      sizeof(*bPixels) * 1,
+                                      sizeof(*bPixels) * xRes));
+        file.setFrameBuffer(frameBuffer);
+        file.writePixels(yRes);
+    } catch (const std::exception &exc) {
+        Error("Error writing \"%s\": %s", name.c_str(), exc.what());
+    }
+
+    delete[] rPixels;
+    delete[] gPixels;
+    delete[] bPixels;
+}
+#endif
 
 // TGA Function Definitions
 void WriteImageTGA(const std::string &name, const uint8_t *pixels, int xRes,

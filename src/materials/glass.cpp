@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/glass.cpp*
 #include "materials/glass.h"
@@ -38,10 +48,54 @@
 #include "paramset.h"
 #include "texture.h"
 #include "interaction.h"
+#include "statistics/luts/glassalbedo.h"
 
 namespace pbrt {
 
 // GlassMaterial Method Definitions
+GlassMaterial::GlassMaterial(
+    const std::shared_ptr<Texture<Spectrum>> &Kr,
+    const std::shared_ptr<Texture<Spectrum>> &Kt,
+    const std::shared_ptr<Texture<Float>> &uRoughness,
+    const std::shared_ptr<Texture<Float>> &vRoughness,
+    const std::shared_ptr<Texture<Float>> &index,
+    const std::shared_ptr<Texture<Float>> &bumpMap,
+    bool remapRoughness,
+    const unsigned long long id
+) : Material(id),
+    Kr(Kr),
+    Kt(Kt),
+    uRoughness(uRoughness),
+    vRoughness(vRoughness),
+    index(index),
+    bumpMap(bumpMap),
+    remapRoughness(remapRoughness)
+{
+    AllocateLUT(
+        &glassAlbedoLUT[0],
+         glassAlbedoLUTNDims,
+        &glassAlbedoLUTMaxIndices[0],
+        &glassAlbedoLUTOffsets[0],
+         albedoLUT,           // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTNDims,
+         albedoLUTMaxIndices, // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTOffsets,    // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTRGBOffsets  // Allocated with new
+    );
+}
+
+GlassMaterial::~GlassMaterial() {
+    DeallocateLUT(
+        &glassAlbedoLUT[0],
+        &glassAlbedoLUTMaxIndices[0],
+        &glassAlbedoLUTOffsets[0],
+         albedoLUT,
+         albedoLUTMaxIndices,
+         albedoLUTOffsets,
+         albedoLUTRGBOffsets
+    );
+}
+
 void GlassMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                MemoryArena &arena,
                                                TransportMode mode,
@@ -91,7 +145,106 @@ void GlassMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     }
 }
 
-GlassMaterial *CreateGlassMaterial(const TextureParams &mp) {
+void GlassMaterial::GetLUTReducibilities(
+    bool &reducible,
+    bool *reducibilities,
+    unsigned char &nDims
+) const {
+    if (Kr->IsConstant()) {
+        LUT_SET_REDUCIBILITY(1)
+    }
+    if (Kt->IsConstant()) {
+        LUT_SET_REDUCIBILITY(2)
+    }
+    if (uRoughness->IsConstant()) {
+        LUT_SET_REDUCIBILITY(3)
+    }
+    if (vRoughness->IsConstant()) {
+        LUT_SET_REDUCIBILITY(4)
+    }
+    if (index->IsConstant()) {
+        LUT_SET_REDUCIBILITY(5)
+    }
+}
+
+// These two methods look redundant, but there are key differences.
+// The first one returns indices for all source LUT dimensions for parameters that are constant.
+// The second one return indices for parameters that are NOT constant.
+// Moreover, this one does not require a surface interaction, whereas the other one does.
+// Lastly, the index calculation is handled differently (source vs. target LUT indices).
+void GlassMaterial::GetLUTReductionIndices(
+    std::vector<std::vector<Float>> &indices
+) const {
+    if (Kr->IsConstant()) {
+        const RGBSpectrum krMapped = Kr->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(1, krMapped)
+    }
+    if (Kt->IsConstant()) {
+        const RGBSpectrum ktMapped = Kt->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(2, ktMapped)
+    }
+    if (uRoughness->IsConstant()) {
+        Float uRough = uRoughness->Evaluate();
+        if (remapRoughness)
+            uRough = TrowbridgeReitzDistribution::RoughnessToAlpha(uRough);
+        const Float uRoughnessMapped = Clamp(InverseLerp(uRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(3, uRoughnessMapped)
+    }
+    if (vRoughness->IsConstant()) {
+        Float vRough = vRoughness->Evaluate();
+        if (remapRoughness)
+            vRough = TrowbridgeReitzDistribution::RoughnessToAlpha(vRough);
+        const Float vRoughnessMapped = Clamp(InverseLerp(vRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(4, vRoughnessMapped)
+    }
+    if (index->IsConstant()) {
+        const Float indexMapped = Clamp(InverseLerp(index->Evaluate(), 1.f + Epsilon, 2.42f), 0.f, 1.f);
+        LUT_SET_INDICES(5, indexMapped)
+    }
+}
+
+void GlassMaterial::GetLUTIndices(
+    SurfaceInteraction *si,
+    std::vector<std::vector<Float>> &indices
+) const {
+    const Float cosThetaMapped = Clamp(InverseLerp(Dot(si->wo, si->shading.n), CosEpsilon, 1.f), 0.f, 1.f); // Transform wo.z to local space
+    LUT_SET_INDICES(0, cosThetaMapped)
+
+    unsigned char i = 1;
+    if (!Kr->IsConstant()) {
+        const RGBSpectrum krMapped = Kr->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, krMapped)
+        i++;
+    }
+    if (!Kt->IsConstant()) {
+        const RGBSpectrum ktMapped = Kt->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, ktMapped)
+        i++;
+    }
+    if (!uRoughness->IsConstant()) {
+        Float uRough = uRoughness->Evaluate(*si);
+        if (remapRoughness)
+            uRough = TrowbridgeReitzDistribution::RoughnessToAlpha(uRough);
+        const Float uRoughnessMapped = Clamp(InverseLerp(uRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, uRoughnessMapped)
+        i++;
+    }
+    if (!vRoughness->IsConstant()) {
+        Float vRough = vRoughness->Evaluate(*si);
+        if (remapRoughness)
+            vRough = TrowbridgeReitzDistribution::RoughnessToAlpha(vRough);
+        const Float vRoughnessMapped = Clamp(InverseLerp(vRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, vRoughnessMapped)
+        i++;
+    }
+    if (!index->IsConstant()) {
+        const Float indexMapped = Clamp(InverseLerp(index->Evaluate(*si), 1.f + Epsilon, 2.42f), 0.f, 1.f);
+        LUT_SET_INDICES(i, indexMapped)
+    }
+}
+
+GlassMaterial *CreateGlassMaterial(const TextureParams &mp,
+                                   const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> Kr =
         mp.GetSpectrumTexture("Kr", Spectrum(1.f));
     std::shared_ptr<Texture<Spectrum>> Kt =
@@ -106,7 +259,7 @@ GlassMaterial *CreateGlassMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", true);
     return new GlassMaterial(Kr, Kt, roughu, roughv, eta, bumpMap,
-                             remapRoughness);
+                             remapRoughness, id);
 }
 
 }  // namespace pbrt

@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -43,6 +53,7 @@
 #include "material.h"
 #include "reflection.h"
 #include "bssrdf.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -59,8 +70,10 @@ class SubsurfaceMaterial : public Material {
                        const std::shared_ptr<Texture<Float>> &uRoughness,
                        const std::shared_ptr<Texture<Float>> &vRoughness,
                        const std::shared_ptr<Texture<Float>> &bumpMap,
-                       bool remapRoughness)
-        : scale(scale),
+                       bool remapRoughness,
+                       const unsigned long long id = 0)
+        : Material(id),
+          scale(scale),
           Kr(Kr),
           Kt(Kt),
           sigma_a(sigma_a),
@@ -76,6 +89,7 @@ class SubsurfaceMaterial : public Material {
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
+    RGBSpectrum GetAlbedo(SurfaceInteraction *si) const;
 
   private:
     // SubsurfaceMaterial Private Data
@@ -88,7 +102,8 @@ class SubsurfaceMaterial : public Material {
     BSSRDFTable table;
 };
 
-SubsurfaceMaterial *CreateSubsurfaceMaterial(const TextureParams &mp);
+SubsurfaceMaterial *CreateSubsurfaceMaterial(const TextureParams &mp,
+                                             const unsigned long long id = 0);
 
 }  // namespace pbrt
 

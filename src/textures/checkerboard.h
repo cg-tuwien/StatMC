@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -99,6 +109,10 @@ class Checkerboard2DTexture : public Texture<T> {
                    area2 * tex2->Evaluate(si);
         }
     }
+    T Evaluate() const {
+        LOG(FATAL) <<
+            "Checkerboard2DTexture::Evaluate() method called; not implemented";
+    }
 
   private:
     // Checkerboard2DTexture Private Data
@@ -125,6 +139,10 @@ class Checkerboard3DTexture : public Texture<T> {
             return tex1->Evaluate(si);
         else
             return tex2->Evaluate(si);
+    }
+    T Evaluate() const {
+        LOG(FATAL) <<
+            "Checkerboard3DTexture::Evaluate() method called; not implemented";
     }
 
   private:

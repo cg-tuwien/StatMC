@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/metal.cpp*
 #include "materials/metal.h"
@@ -37,24 +47,53 @@
 #include "paramset.h"
 #include "texture.h"
 #include "interaction.h"
+#include "statistics/luts/metalalbedo.h"
 
 namespace pbrt {
 
 // MetalMaterial Method Definitions
-MetalMaterial::MetalMaterial(const std::shared_ptr<Texture<Spectrum>> &eta,
-                             const std::shared_ptr<Texture<Spectrum>> &k,
-                             const std::shared_ptr<Texture<Float>> &roughness,
-                             const std::shared_ptr<Texture<Float>> &uRoughness,
-                             const std::shared_ptr<Texture<Float>> &vRoughness,
-                             const std::shared_ptr<Texture<Float>> &bumpMap,
-                             bool remapRoughness)
-    : eta(eta),
-      k(k),
-      roughness(roughness),
-      uRoughness(uRoughness),
-      vRoughness(vRoughness),
-      bumpMap(bumpMap),
-      remapRoughness(remapRoughness) {}
+MetalMaterial::MetalMaterial(
+    const std::shared_ptr<Texture<Spectrum>> &eta,
+    const std::shared_ptr<Texture<Spectrum>> &k,
+    const std::shared_ptr<Texture<Float>> &roughness,
+    const std::shared_ptr<Texture<Float>> &uRoughness,
+    const std::shared_ptr<Texture<Float>> &vRoughness,
+    const std::shared_ptr<Texture<Float>> &bumpMap,
+    bool remapRoughness,
+    const unsigned long long id
+) : Material(id),
+    eta(eta),
+    k(k),
+    roughness(roughness),
+    uRoughness(uRoughness),
+    vRoughness(vRoughness),
+    bumpMap(bumpMap),
+    remapRoughness(remapRoughness)
+{
+    AllocateLUT(
+        &metalAlbedoLUT[0],
+         metalAlbedoLUTNDims,
+        &metalAlbedoLUTMaxIndices[0],
+        &metalAlbedoLUTOffsets[0],
+         albedoLUT,           // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTNDims,
+         albedoLUTMaxIndices, // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTOffsets,    // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTRGBOffsets  // Allocated with new
+    );
+}
+
+MetalMaterial::~MetalMaterial() {
+    DeallocateLUT(
+        &metalAlbedoLUT[0],
+        &metalAlbedoLUTMaxIndices[0],
+        &metalAlbedoLUTOffsets[0],
+         albedoLUT,
+         albedoLUTMaxIndices,
+         albedoLUTOffsets,
+         albedoLUTRGBOffsets
+    );
+}
 
 void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                MemoryArena &arena,
@@ -77,6 +116,91 @@ void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     MicrofacetDistribution *distrib =
         ARENA_ALLOC(arena, TrowbridgeReitzDistribution)(uRough, vRough);
     si->bsdf->Add(ARENA_ALLOC(arena, MicrofacetReflection)(1., distrib, frMf));
+}
+
+void MetalMaterial::GetLUTReducibilities(bool          &reducible,
+                                         bool          *reducibilities,
+                                         unsigned char &nDims) const {
+    if (eta->IsConstant()) {
+        LUT_SET_REDUCIBILITY(1)
+    }
+    if (k->IsConstant()) {
+        LUT_SET_REDUCIBILITY(2)
+    }
+    if ((uRoughness && uRoughness->IsConstant()) ||
+        (!uRoughness && roughness->IsConstant())) {
+        LUT_SET_REDUCIBILITY(3)
+    }
+    if ((vRoughness && vRoughness->IsConstant()) ||
+        (!vRoughness && roughness->IsConstant())) {
+        LUT_SET_REDUCIBILITY(4)
+    }
+}
+
+void MetalMaterial::GetLUTReductionIndices(
+    std::vector<std::vector<Float>> &indices
+) const {
+    if (eta->IsConstant()) {
+        const RGBSpectrum etaMapped = InverseLerp(eta->Evaluate(), RGBSpectrum(Epsilon), RGBSpectrum(7.14f)).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(1, etaMapped)
+    }
+    if (k->IsConstant()) {
+        const RGBSpectrum kMapped = InverseLerp(k->Evaluate(), RGBSpectrum(Epsilon), RGBSpectrum(8.62f)).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(2, kMapped)
+    }
+    if ((uRoughness && uRoughness->IsConstant()) ||
+        (!uRoughness && roughness->IsConstant())) {
+        Float uRough = uRoughness ? uRoughness->Evaluate() : roughness->Evaluate();
+        if (remapRoughness)
+            uRough = TrowbridgeReitzDistribution::RoughnessToAlpha(uRough);
+        const Float uRoughnessMapped = Clamp(InverseLerp(uRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(3, uRoughnessMapped)
+    }
+    if ((vRoughness && vRoughness->IsConstant()) ||
+        (!vRoughness && roughness->IsConstant())) {
+        Float vRough = vRoughness ? vRoughness->Evaluate() : roughness->Evaluate();
+        if (remapRoughness)
+            vRough = TrowbridgeReitzDistribution::RoughnessToAlpha(vRough);
+        const Float vRoughnessMapped = Clamp(InverseLerp(vRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(4, vRoughnessMapped)
+    }
+}
+
+void MetalMaterial::GetLUTIndices(
+    SurfaceInteraction *si,
+    std::vector<std::vector<Float>> &indices
+) const {
+    const Float cosThetaMapped = Clamp(InverseLerp(Dot(si->wo, si->shading.n), CosEpsilon, 1.f), 0.f, 1.f); // Transform wo.z to local space
+    LUT_SET_INDICES(0, cosThetaMapped)
+
+    unsigned char i = 1;
+    if (!eta->IsConstant()) {
+        const RGBSpectrum etaMapped = InverseLerp(eta->Evaluate(*si), RGBSpectrum(Epsilon), RGBSpectrum(7.14f)).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, etaMapped)
+        i++;
+    }
+    if (!k->IsConstant()) {
+        const RGBSpectrum kMapped = InverseLerp(k->Evaluate(*si), RGBSpectrum(Epsilon), RGBSpectrum(8.62f)).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, kMapped)
+        i++;
+    }
+    if (!((uRoughness && uRoughness->IsConstant()) ||
+          (!uRoughness && roughness->IsConstant()))) {
+        Float uRough = uRoughness ? uRoughness->Evaluate(*si) : roughness->Evaluate(*si);
+        if (remapRoughness)
+            uRough = TrowbridgeReitzDistribution::RoughnessToAlpha(uRough);
+        const Float uRoughnessMapped = Clamp(InverseLerp(uRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, uRoughnessMapped)
+        i++;
+    }
+    if (!((vRoughness && vRoughness->IsConstant()) ||
+          (!vRoughness && roughness->IsConstant()))) {
+        Float vRough = vRoughness ? vRoughness->Evaluate(*si) : roughness->Evaluate(*si);
+        if (remapRoughness)
+            vRough = TrowbridgeReitzDistribution::RoughnessToAlpha(vRough);
+        const Float vRoughnessMapped = Clamp(InverseLerp(vRough, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, vRoughnessMapped)
+    }
 }
 
 const int CopperSamples = 56;
@@ -112,7 +236,8 @@ const Float CopperK[CopperSamples] = {
     2.678062, 2.809, 3.01075,  3.24,  3.458187, 3.67,  3.863125, 4.05,
     4.239563, 4.43,  4.619563, 4.817, 5.034125, 5.26,  5.485625, 5.717};
 
-MetalMaterial *CreateMetalMaterial(const TextureParams &mp) {
+MetalMaterial *CreateMetalMaterial(const TextureParams &mp,
+                                   const unsigned long long id) {
     static Spectrum copperN =
         Spectrum::FromSampled(CopperWavelengths, CopperN, CopperSamples);
     std::shared_ptr<Texture<Spectrum>> eta =
@@ -130,7 +255,7 @@ MetalMaterial *CreateMetalMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", true);
     return new MetalMaterial(eta, k, roughness, uRoughness, vRoughness, bumpMap,
-                             remapRoughness);
+                             remapRoughness, id);
 }
 
 }  // namespace pbrt

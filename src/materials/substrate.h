@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,7 @@
 // materials/substrate.h*
 #include "pbrt.h"
 #include "material.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -53,13 +64,9 @@ class SubstrateMaterial : public Material {
                       const std::shared_ptr<Texture<Float>> &nu,
                       const std::shared_ptr<Texture<Float>> &nv,
                       const std::shared_ptr<Texture<Float>> &bumpMap,
-                      bool remapRoughness)
-        : Kd(Kd),
-          Ks(Ks),
-          nu(nu),
-          nv(nv),
-          bumpMap(bumpMap),
-          remapRoughness(remapRoughness) {}
+                      bool remapRoughness,
+                      const unsigned long long id = 0);
+    ~SubstrateMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
@@ -70,9 +77,24 @@ class SubstrateMaterial : public Material {
     std::shared_ptr<Texture<Float>> nu, nv;
     std::shared_ptr<Texture<Float>> bumpMap;
     bool remapRoughness;
+
+    // SubstrateMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
 };
 
-SubstrateMaterial *CreateSubstrateMaterial(const TextureParams &mp);
+SubstrateMaterial *CreateSubstrateMaterial(const TextureParams &mp,
+                                           const unsigned long long id = 0);
 
 }  // namespace pbrt
 

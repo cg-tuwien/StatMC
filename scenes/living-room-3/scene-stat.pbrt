@@ -1,0 +1,133 @@
+Include "../_active.pbrt"
+
+ExtraParams "extras"
+	"integer integratormaxdepth" [65]
+
+Transform [ -0.89903 -0.0125668 -0.437707 -0 9.31322e-010 0.999588 -0.0286988 -0 -0.437887 0.0258011 0.89866 -0 -2.02491 -0.880071 4.81711 1]
+#Sampler "sobol" "integer pixelsamples" [ 64 ] 
+#PixelFilter "triangle" "float xwidth" [ 1.000000 ] "float ywidth" [ 1.000000 ] 
+Film "image" "integer xresolution" [ 1280 ] "integer yresolution" [ 720 ] "string filename" [ "living-room3.pfm" ] 
+Camera "perspective" "float fov" [ 29.394957 ] 
+WorldBegin
+	Texture "Texture01" "spectrum" "imagemap" "string filename" [ "textures/Abstract.tga" ] "bool trilinear" [ "true" ] 
+	Texture "Texture02" "spectrum" "imagemap" "string filename" [ "textures/WoodFloor.tga" ] "bool trilinear" [ "true" ] 
+	Texture "Texture03" "spectrum" "imagemap" "string filename" [ "textures/Fabric.tga" ] "bool trilinear" [ "true" ] 
+	MakeNamedMedium "red_absorb" "string type" [ "homogeneous" ] "rgb sigma_s" [ 0.000000 0.000000 0.000000 ] "rgb sigma_a" [ 250.000000 1000.000000 1000.000000 ] "float scale" [ 1.000000 ] 
+	MakeNamedMaterial "Picture" "string type" [ "matte" ] "texture Kd" [ "Texture01" ] 
+	MakeNamedMaterial "Floor" "string type" [ "substrate" ] "rgb Ks" [ 0.012346 0.012346 0.012346 ] "texture Kd" [ "Texture02" ] "float uroughness" [ 0.250000 ] "float vroughness" [ 0.250000 ] "bool remaproughness" [ "false" ] 
+	MakeNamedMaterial "Glass" "string type" [ "glass" ] "float index" [ 1.500000 ] "bool remaproughness" [ "false" ] 
+	MakeNamedMaterial "Vase" "string type" [ "substrate" ] "rgb Ks" [ 0.040000 0.040000 0.040000 ] "rgb Kd" [ 0.100000 0.100000 0.100000 ] "float uroughness" [ 0.100000 ] "float vroughness" [ 0.100000 ] "bool remaproughness" [ "false" ] 
+	MakeNamedMaterial "Legs" "string type" [ "metal" ] "rgb eta" [ 4.369683 2.916703 1.654701 ] "rgb k" [ 5.206434 4.231365 3.754947 ] "bool remaproughness" [ "false" ] "float uroughness" [ 0.300000 ] "float vroughness" [ 0.300000 ] 
+	MakeNamedMaterial "Fruits" "string type" [ "matte" ] "rgb Kd" [ 0.486897 0.006799 0.010756 ] 
+	MakeNamedMaterial "Cushions" "string type" [ "matte" ] "texture Kd" [ "Texture03" ] 
+	MakeNamedMaterial "WhitePaint" "string type" [ "substrate" ] "rgb Ks" [ 0.040000 0.040000 0.040000 ] "rgb Kd" [ 1.000000 1.000000 1.000000 ] "float uroughness" [ 0.100000 ] "float vroughness" [ 0.100000 ] "bool remaproughness" [ "false" ] 
+	MakeNamedMaterial "Sofa" "string type" [ "substrate" ] "rgb Ks" [ 0.040000 0.040000 0.040000 ] "rgb Kd" [ 1.000000 1.000000 1.000000 ] "float uroughness" [ 0.250000 ] "float vroughness" [ 0.250000 ] "bool remaproughness" [ "false" ] 
+	MakeNamedMaterial "Twigs" "string type" [ "matte" ] "rgb Kd" [ 0.152325 0.032489 0.019341 ] 
+	MakeNamedMaterial "Walls" "string type" [ "matte" ] "rgb Kd" [ 1.000000 1.000000 1.000000 ] 
+	MakeNamedMaterial "Rug" "string type" [ "matte" ] "rgb Kd" [ 0.481952 0.006585 0.010398 ] 
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		NamedMaterial "Glass" 
+		Shape "plymesh" "string filename" [ "models/Mesh019.ply" ] 
+	AttributeEnd
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		Shape "plymesh" "string filename" [ "models/Mesh033.ply" ] 
+	AttributeEnd
+	NamedMaterial "Vase" 
+	Shape "plymesh" "string filename" [ "models/Mesh020.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh016.ply" ] 
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		NamedMaterial "Glass" 
+		Shape "plymesh" "string filename" [ "models/Mesh017.ply" ] 
+	AttributeEnd
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		Shape "plymesh" "string filename" [ "models/Mesh014.ply" ] 
+	AttributeEnd
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		Shape "plymesh" "string filename" [ "models/Mesh025.ply" ] 
+	AttributeEnd
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		Shape "plymesh" "string filename" [ "models/Mesh013.ply" ] 
+	AttributeEnd
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		Shape "plymesh" "string filename" [ "models/Mesh021.ply" ] 
+	AttributeEnd
+	Shape "plymesh" "string filename" [ "models/Mesh022.ply" ] 
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		Shape "plymesh" "string filename" [ "models/Mesh015.ply" ] 
+	AttributeEnd
+	NamedMaterial "Vase" 
+	Shape "plymesh" "string filename" [ "models/Mesh024.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh026.ply" ] 
+	NamedMaterial "Twigs" 
+	Shape "plymesh" "string filename" [ "models/Mesh034.ply" ] 
+	NamedMaterial "Fruits" 
+	Shape "plymesh" "string filename" [ "models/Mesh029.ply" ] 
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		NamedMaterial "Glass" 
+		Shape "plymesh" "string filename" [ "models/Mesh018.ply" ] 
+	AttributeEnd
+	NamedMaterial "Picture" 
+	TransformBegin
+		Transform [ 1 0 0 0 0 1 0 0 0 0 1 0 -0.502389 0 0 1]
+		Shape "plymesh" "string filename" [ "models/Mesh032.ply" ] 
+	TransformEnd
+	AttributeBegin
+		MediumInterface "red_absorb" ""
+		NamedMaterial "Glass" 
+		Shape "plymesh" "string filename" [ "models/Mesh035.ply" ] 
+	AttributeEnd
+	NamedMaterial "WhitePaint" 
+	Shape "plymesh" "string filename" [ "models/Mesh031.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh012.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh011.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh010.ply" ] 
+	NamedMaterial "Sofa" 
+	Shape "plymesh" "string filename" [ "models/Mesh028.ply" ] 
+	NamedMaterial "Cushions" 
+	Shape "plymesh" "string filename" [ "models/Mesh009.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh007.ply" ] 
+	NamedMaterial "Sofa" 
+	Shape "plymesh" "string filename" [ "models/Mesh006.ply" ] 
+	Shape "plymesh" "string filename" [ "models/Mesh030.ply" ] 
+	NamedMaterial "Legs" 
+	Shape "plymesh" "string filename" [ "models/Mesh005.ply" ] 
+	NamedMaterial "Cushions" 
+	Shape "plymesh" "string filename" [ "models/Mesh004.ply" ] 
+	NamedMaterial "WhitePaint" 
+	Shape "plymesh" "string filename" [ "models/Mesh023.ply" ] 
+	NamedMaterial "Legs" 
+	Shape "plymesh" "string filename" [ "models/Mesh002.ply" ] 
+	NamedMaterial "Floor" 
+	TransformBegin
+		Transform [ 1 0 0 0 0 1 0 0 0 0 2.30893 0 0 0 0 1]
+		Shape "plymesh" "string filename" [ "models/Mesh008.ply" ] 
+	TransformEnd
+	NamedMaterial "Walls" 
+	TransformBegin
+		Transform [ 1 0 0 0 0 1 0 0 0 0 2.28402 0 0 0 0 1]
+		Shape "plymesh" "string filename" [ "models/Mesh027.ply" ] 
+	TransformEnd
+	NamedMaterial "Rug" 
+	Shape "plymesh" "string filename" [ "models/Mesh003.ply" ] 
+	NamedMaterial "WhitePaint" 
+	Shape "plymesh" "string filename" [ "models/Mesh001.ply" ] 
+	AttributeBegin
+		AreaLightSource "diffuse" "rgb L" [ 112.798859 112.798859 112.798859 ] 
+		Material "matte" "rgb Kd" [ 0.000000 0.000000 0.000000 ] 
+		TransformBegin
+			Transform [ 1 0 0 0 0 1 0 0 0 0 1 0 -4.50891 1.81441 -3.77121 1]
+			Shape "sphere" "float radius" [ 0.164157 ] 
+		TransformEnd
+	AttributeEnd
+	Material "matte" "rgb Kd" [ 0.420000 0.007000 0.010000 ] 
+	Include "models/.pbrt" 
+WorldEnd

@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // core/film.cpp*
 #include "film.h"
@@ -49,21 +59,23 @@ Film::Film(const Point2i &resolution, const Bounds2f &cropWindow,
       diagonal(diagonal * .001),
       filter(std::move(filt)),
       filename(filename),
+      croppedPixelBounds(Bounds2i(
+          Point2i(std::ceil(fullResolution.x * cropWindow.pMin.x),
+                  std::ceil(fullResolution.y * cropWindow.pMin.y)),
+          Point2i(std::ceil(fullResolution.x * cropWindow.pMax.x),
+                  std::ceil(fullResolution.y * cropWindow.pMax.y))
+      )),
+      width (croppedPixelBounds.pMax.x - croppedPixelBounds.pMin.x),
+      height(croppedPixelBounds.pMax.y - croppedPixelBounds.pMin.y),
+      area(croppedPixelBounds.Area()),
+      buffer("film", width, height, area),
       scale(scale),
       maxSampleLuminance(maxSampleLuminance) {
-    // Compute film image bounds
-    croppedPixelBounds =
-        Bounds2i(Point2i(std::ceil(fullResolution.x * cropWindow.pMin.x),
-                         std::ceil(fullResolution.y * cropWindow.pMin.y)),
-                 Point2i(std::ceil(fullResolution.x * cropWindow.pMax.x),
-                         std::ceil(fullResolution.y * cropWindow.pMax.y)));
     LOG(INFO) << "Created film with full resolution " << resolution <<
         ". Crop window of " << cropWindow << " -> croppedPixelBounds " <<
         croppedPixelBounds;
 
-    // Allocate film image storage
-    pixels = std::unique_ptr<Pixel[]>(new Pixel[croppedPixelBounds.Area()]);
-    filmPixelMemory += croppedPixelBounds.Area() * sizeof(Pixel);
+    filmPixelMemory += area * sizeof(Pixel);
 
     // Precompute filter weight table
     int offset = 0;
@@ -83,6 +95,13 @@ Bounds2i Film::GetSampleBounds() const {
                          Ceil(Point2f(croppedPixelBounds.pMax) -
                               Vector2f(0.5f, 0.5f) + filter->radius));
     return (Bounds2i)floatBounds;
+}
+
+Bounds2i Film::GetActualTileBounds(const Bounds2i &tileBounds) const {
+    Bounds2i actualTileBounds = Intersect(tileBounds, croppedPixelBounds);
+    actualTileBounds.pMin = Point2i(actualTileBounds.pMin - croppedPixelBounds.pMin);
+    actualTileBounds.pMax = Point2i(actualTileBounds.pMax - croppedPixelBounds.pMin);
+    return actualTileBounds;
 }
 
 Bounds2f Film::GetPhysicalExtent() const {
@@ -114,7 +133,7 @@ void Film::Clear() {
     }
 }
 
-void Film::MergeFilmTile(std::unique_ptr<FilmTile> tile) {
+void Film::MergeFilmTile(std::shared_ptr<FilmTile> tile) {
     ProfilePhase p(Prof::MergeFilmTile);
     VLOG(1) << "Merging film tile " << tile->pixelBounds;
     std::lock_guard<std::mutex> lock(mutex);
@@ -132,7 +151,7 @@ void Film::MergeFilmTile(std::unique_ptr<FilmTile> tile) {
 void Film::SetImage(const Spectrum *img) const {
     int nPixels = croppedPixelBounds.Area();
     for (int i = 0; i < nPixels; ++i) {
-        Pixel &p = pixels[i];
+        Pixel &p = buffer.pixels[i];
         img[i].ToXYZ(p.xyz);
         p.filterWeightSum = 1;
         p.splatXYZ[0] = p.splatXYZ[1] = p.splatXYZ[2] = 0;
@@ -166,11 +185,8 @@ void Film::AddSplat(const Point2f &p, Spectrum v) {
     for (int i = 0; i < 3; ++i) pixel.splatXYZ[i].Add(xyz[i]);
 }
 
-void Film::WriteImage(Float splatScale) {
-    // Convert image to RGB and compute final pixel values
-    LOG(INFO) <<
-        "Converting image to RGB and computing final weighted pixel values";
-    std::unique_ptr<Float[]> rgb(new Float[3 * croppedPixelBounds.Area()]);
+void Film::UpdateImage(const Float splatScale) {
+    Float *rgb = &((Float *)buffer.matPtr)[0];
     int offset = 0;
     for (Point2i p : croppedPixelBounds) {
         // Convert pixel XYZ color to RGB
@@ -203,11 +219,18 @@ void Film::WriteImage(Float splatScale) {
         rgb[3 * offset + 2] *= scale;
         ++offset;
     }
+}
+
+void Film::WriteImage(const Float splatScale) {
+    // Convert image to RGB and compute final pixel values
+    LOG(INFO) <<
+        "Converting image to RGB and computing final weighted pixel values";
+    UpdateImage(splatScale); 
 
     // Write RGB image
     LOG(INFO) << "Writing image " << filename << " with bounds " <<
         croppedPixelBounds;
-    pbrt::WriteImage(filename, &rgb[0], croppedPixelBounds, fullResolution);
+    pbrt::WriteImage(filename, &((Float *)buffer.matPtr)[0], croppedPixelBounds, fullResolution);
 }
 
 Film *CreateFilm(const ParamSet &params, std::unique_ptr<Filter> filter) {

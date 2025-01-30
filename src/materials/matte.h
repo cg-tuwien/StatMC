@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,7 @@
 // materials/matte.h*
 #include "pbrt.h"
 #include "material.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -50,19 +61,36 @@ class MatteMaterial : public Material {
     // MatteMaterial Public Methods
     MatteMaterial(const std::shared_ptr<Texture<Spectrum>> &Kd,
                   const std::shared_ptr<Texture<Float>> &sigma,
-                  const std::shared_ptr<Texture<Float>> &bumpMap)
-        : Kd(Kd), sigma(sigma), bumpMap(bumpMap) {}
+                  const std::shared_ptr<Texture<Float>> &bumpMap,
+                  const unsigned long long id = 0);
+    ~MatteMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
+    RGBSpectrum GetAlbedo(SurfaceInteraction *si) const;
 
   private:
     // MatteMaterial Private Data
     std::shared_ptr<Texture<Spectrum>> Kd;
     std::shared_ptr<Texture<Float>> sigma, bumpMap;
+
+    // MatteMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
 };
 
-MatteMaterial *CreateMatteMaterial(const TextureParams &mp);
+MatteMaterial *CreateMatteMaterial(const TextureParams &mp,
+                                   const unsigned long long id = 0);
 
 }  // namespace pbrt
 

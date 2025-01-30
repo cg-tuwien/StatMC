@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -41,6 +51,7 @@
 // materials/translucent.h*
 #include "pbrt.h"
 #include "material.h"
+#include "spectrum.h"
 
 namespace pbrt {
 
@@ -54,15 +65,9 @@ class TranslucentMaterial : public Material {
                         const std::shared_ptr<Texture<Spectrum>> &refl,
                         const std::shared_ptr<Texture<Spectrum>> &trans,
                         const std::shared_ptr<Texture<Float>> &bump,
-                        bool remap) {
-        Kd = kd;
-        Ks = ks;
-        roughness = rough;
-        reflect = refl;
-        transmit = trans;
-        bumpMap = bump;
-        remapRoughness = remap;
-    }
+                        bool remap,
+                        const unsigned long long id = 0);
+    ~TranslucentMaterial();
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
@@ -74,9 +79,24 @@ class TranslucentMaterial : public Material {
     std::shared_ptr<Texture<Spectrum>> reflect, transmit;
     std::shared_ptr<Texture<Float>> bumpMap;
     bool remapRoughness;
+
+    // TranslucentMaterial Private Methods
+    void GetLUTReducibilities(
+        bool &reducible,
+        bool *reducibilities,
+        unsigned char &nDims
+    ) const;
+    void GetLUTReductionIndices(
+        std::vector<std::vector<Float>> &indices
+    ) const;
+    void GetLUTIndices(
+        SurfaceInteraction *si,
+        std::vector<std::vector<Float>> &indices
+    ) const;
 };
 
-TranslucentMaterial *CreateTranslucentMaterial(const TextureParams &mp);
+TranslucentMaterial *CreateTranslucentMaterial(const TextureParams &mp,
+                                               const unsigned long long id = 0);
 
 }  // namespace pbrt
 

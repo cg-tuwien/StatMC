@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 // core/api.cpp*
 #include "api.h"
 #include "parallel.h"
@@ -114,6 +124,7 @@
 #include "textures/wrinkled.h"
 #include "media/grid.h"
 #include "media/homogeneous.h"
+#include "statistics/statpath.h"
 
 #include <map>
 #include <stdio.h>
@@ -176,6 +187,7 @@ struct RenderOptions {
     std::string CameraName = "perspective";
     ParamSet CameraParams;
     TransformSet CameraToWorld;
+    ParamSet ExtraParams;
     std::map<std::string, std::shared_ptr<Medium>> namedMedia;
     std::vector<std::shared_ptr<Light>> lights;
     std::vector<std::shared_ptr<Primitive>> primitives;
@@ -540,19 +552,19 @@ std::shared_ptr<Material> MakeMaterial(const std::string &name,
     if (name == "" || name == "none")
         return nullptr;
     else if (name == "matte")
-        material = CreateMatteMaterial(mp);
+        material = CreateMatteMaterial(mp, nMaterialsCreated + 1);
     else if (name == "plastic")
-        material = CreatePlasticMaterial(mp);
+        material = CreatePlasticMaterial(mp, nMaterialsCreated + 1);
     else if (name == "translucent")
-        material = CreateTranslucentMaterial(mp);
+        material = CreateTranslucentMaterial(mp, nMaterialsCreated + 1);
     else if (name == "glass")
-        material = CreateGlassMaterial(mp);
+        material = CreateGlassMaterial(mp, nMaterialsCreated + 1);
     else if (name == "mirror")
-        material = CreateMirrorMaterial(mp);
+        material = CreateMirrorMaterial(mp, nMaterialsCreated + 1);
     else if (name == "hair")
-        material = CreateHairMaterial(mp);
+        material = CreateHairMaterial(mp, nMaterialsCreated + 1);
     else if (name == "disney")
-        material = CreateDisneyMaterial(mp);
+        material = CreateDisneyMaterial(mp, nMaterialsCreated + 1);
     else if (name == "mix") {
         std::string m1 = mp.FindString("namedmaterial1", "");
         std::string m2 = mp.FindString("namedmaterial2", "");
@@ -573,22 +585,22 @@ std::shared_ptr<Material> MakeMaterial(const std::string &name,
         } else
             mat2 = (*graphicsState.namedMaterials)[m2]->material;
 
-        material = CreateMixMaterial(mp, mat1, mat2);
+        material = CreateMixMaterial(mp, mat1, mat2, nMaterialsCreated + 1);
     } else if (name == "metal")
-        material = CreateMetalMaterial(mp);
+        material = CreateMetalMaterial(mp, nMaterialsCreated + 1);
     else if (name == "substrate")
-        material = CreateSubstrateMaterial(mp);
+        material = CreateSubstrateMaterial(mp, nMaterialsCreated + 1);
     else if (name == "uber")
-        material = CreateUberMaterial(mp);
+        material = CreateUberMaterial(mp, nMaterialsCreated + 1);
     else if (name == "subsurface")
-        material = CreateSubsurfaceMaterial(mp);
+        material = CreateSubsurfaceMaterial(mp, nMaterialsCreated + 1);
     else if (name == "kdsubsurface")
-        material = CreateKdSubsurfaceMaterial(mp);
+        material = CreateKdSubsurfaceMaterial(mp, nMaterialsCreated + 1);
     else if (name == "fourier")
-        material = CreateFourierMaterial(mp);
+        material = CreateFourierMaterial(mp, nMaterialsCreated + 1);
     else {
         Warning("Material \"%s\" unknown. Using \"matte\".", name.c_str());
-        material = CreateMatteMaterial(mp);
+        material = CreateMatteMaterial(mp, nMaterialsCreated + 1);
     }
 
     if ((name == "subsurface" || name == "kdsubsurface") &&
@@ -826,7 +838,7 @@ std::shared_ptr<Sampler> MakeSampler(const std::string &name,
     else if (name == "sobol")
         sampler = CreateSobolSampler(paramSet, film->GetSampleBounds());
     else if (name == "random")
-        sampler = CreateRandomSampler(paramSet);
+        sampler = CreateRandomSampler(paramSet, PbrtOptions.baseSeed);
     else if (name == "stratified")
         sampler = CreateStratifiedSampler(paramSet);
     else
@@ -859,7 +871,7 @@ std::unique_ptr<Filter> MakeFilter(const std::string &name,
 Film *MakeFilm(const std::string &name, const ParamSet &paramSet,
                std::unique_ptr<Filter> filter) {
     Film *film = nullptr;
-    if (name == "image")
+    if (name == "image" || name == "multi") // "multi" is only for compatibility with older scene descriptions
         film = CreateFilm(paramSet, std::move(filter));
     else
         Warning("Film \"%s\" unknown.", name.c_str());
@@ -1418,6 +1430,16 @@ void pbrtShape(const std::string &name, const ParamSet &params) {
     }
 }
 
+void pbrtExtraParams(const std::string &type, const ParamSet &params) {
+    VERIFY_OPTIONS("ExtraParams");
+    renderOptions->ExtraParams = params;
+    if (PbrtOptions.cat || PbrtOptions.toPly) {
+        printf("%*sExtraParams \"%s\" ", catIndentCount, "", type.c_str());
+        params.Print(catIndentCount);
+        printf("\n");
+    }
+}
+
 // Attempt to determine if the ParamSet for a shape may provide a value for
 // its material's parameters. Unfortunately, materials don't provide an
 // explicit representation of their parameters that we can query and
@@ -1616,7 +1638,12 @@ void pbrtWorldEnd() {
         CHECK_EQ(CurrentProfilerState(), ProfToBits(Prof::SceneConstruction));
         ProfilerState = ProfToBits(Prof::IntegratorRender);
 
-        if (scene && integrator) integrator->Render(*scene);
+        if (scene && integrator) {
+            if (PbrtOptions.denoise)
+                integrator->Denoise(*scene);
+            else
+                integrator->Render(*scene);
+        }
 
         CHECK_EQ(CurrentProfilerState(), ProfToBits(Prof::IntegratorRender));
         ProfilerState = ProfToBits(Prof::SceneConstruction);
@@ -1673,6 +1700,31 @@ Integrator *RenderOptions::MakeIntegrator() const {
         return nullptr;
     }
 
+    if (IntegratorName == "statpath") {
+        if (FilterName != "box") {
+            Error(
+                "Filter \"%s\" is used but \"%s\" integrator doesn't support "
+                "this filter. Use \"box\".",
+                FilterName.c_str(), IntegratorName.c_str());
+            exit(1);
+        } else {
+            if (FilterParams.FindOneFloat("xwidth", 0.5f) != 0.5f) {
+                Error(
+                    "Filter xwidth %f is used but \"%s\" integrator doesn't "
+                    "support this filter width. Use 0.5.",
+                    FilterParams.FindOneFloat("xwidth", 0.5f), IntegratorName.c_str());
+                exit(1);
+            }
+            if (FilterParams.FindOneFloat("ywidth", 0.5f) != 0.5f) {
+                Error(
+                    "Filter ywidth %f is used but \"%s\" integrator doesn't "
+                    "support this filter width. Use 0.5.",
+                    FilterParams.FindOneFloat("ywidth", 0.5f), IntegratorName.c_str());
+                exit(1);
+            }
+        }
+    }
+
     Integrator *integrator = nullptr;
     if (IntegratorName == "whitted")
         integrator = CreateWhittedIntegrator(IntegratorParams, sampler, camera);
@@ -1691,6 +1743,9 @@ Integrator *RenderOptions::MakeIntegrator() const {
         integrator = CreateAOIntegrator(IntegratorParams, sampler, camera);
     } else if (IntegratorName == "sppm") {
         integrator = CreateSPPMIntegrator(IntegratorParams, camera);
+    } else if (IntegratorName == "statpath") {
+        integrator = CreateStatPathIntegrator(IntegratorParams, ExtraParams, sampler, camera);
+        PbrtOptions.quiet = true;
     } else {
         Error("Integrator \"%s\" unknown.", IntegratorName.c_str());
         return nullptr;

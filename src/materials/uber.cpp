@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 
 // materials/uber.cpp*
 #include "materials/uber.h"
@@ -38,10 +48,62 @@
 #include "texture.h"
 #include "interaction.h"
 #include "paramset.h"
+#include "statistics/luts/uberalbedo.h"
 
 namespace pbrt {
 
 // UberMaterial Method Definitions
+UberMaterial::UberMaterial(
+    const std::shared_ptr<Texture<Spectrum>> &Kd,
+    const std::shared_ptr<Texture<Spectrum>> &Ks,
+    const std::shared_ptr<Texture<Spectrum>> &Kr,
+    const std::shared_ptr<Texture<Spectrum>> &Kt,
+    const std::shared_ptr<Texture<Float>> &roughness,
+    const std::shared_ptr<Texture<Float>> &roughnessu,
+    const std::shared_ptr<Texture<Float>> &roughnessv,
+    const std::shared_ptr<Texture<Spectrum>> &opacity,
+    const std::shared_ptr<Texture<Float>> &eta,
+    const std::shared_ptr<Texture<Float>> &bumpMap,
+    bool remapRoughness,
+    const unsigned long long id
+) : Material(id),
+    Kd(Kd),
+    Ks(Ks),
+    Kr(Kr),
+    Kt(Kt),
+    opacity(opacity),
+    roughness(roughness),
+    roughnessu(roughnessu),
+    roughnessv(roughnessv),
+    eta(eta),
+    bumpMap(bumpMap),
+    remapRoughness(remapRoughness)
+{
+    AllocateLUT(
+        &uberAlbedoLUT[0],
+         uberAlbedoLUTNDims,
+        &uberAlbedoLUTMaxIndices[0],
+        &uberAlbedoLUTOffsets[0],
+         albedoLUT,           // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTNDims,
+         albedoLUTMaxIndices, // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTOffsets,    // Potentially allocated with new (we might just point to the data given above)
+         albedoLUTRGBOffsets  // Allocated with new
+    );
+}
+
+UberMaterial::~UberMaterial() {
+    DeallocateLUT(
+        &uberAlbedoLUT[0],
+        &uberAlbedoLUTMaxIndices[0],
+        &uberAlbedoLUTOffsets[0],
+         albedoLUT,
+         albedoLUTMaxIndices,
+         albedoLUTOffsets,
+         albedoLUTRGBOffsets
+    );
+}
+
 void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                               MemoryArena &arena,
                                               TransportMode mode,
@@ -100,7 +162,151 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
             ARENA_ALLOC(arena, SpecularTransmission)(kt, 1.f, e, mode));
 }
 
-UberMaterial *CreateUberMaterial(const TextureParams &mp) {
+RGBSpectrum UberMaterial::GetAlbedo(SurfaceInteraction *si) const {
+    return opacity->Evaluate(*si).Clamp() * Material::GetAlbedo(si);
+}
+
+void UberMaterial::GetLUTReducibilities(
+    bool &reducible,
+    bool *reducibilities,
+    unsigned char &nDims
+) const {
+    if (Kd->IsConstant()) {
+        LUT_SET_REDUCIBILITY(1)
+    }
+    if (Ks->IsConstant()) {
+        LUT_SET_REDUCIBILITY(2)
+    }
+    if (Kr->IsConstant()) {
+        LUT_SET_REDUCIBILITY(3)
+    }
+    if (Kt->IsConstant()) {
+        LUT_SET_REDUCIBILITY(4)
+    }
+    if ((roughnessu && roughnessu->IsConstant()) ||
+        (!roughnessu && roughness->IsConstant())) {
+        LUT_SET_REDUCIBILITY(5)
+    }
+    if ((roughnessv && roughnessv->IsConstant()) ||
+        (!roughnessv && roughness->IsConstant())) {
+        LUT_SET_REDUCIBILITY(6)
+    }
+    if (eta->IsConstant()) {
+        LUT_SET_REDUCIBILITY(7)
+    }
+}
+
+void UberMaterial::GetLUTReductionIndices(
+    std::vector<std::vector<Float>> &indices
+) const {
+    if (Kd->IsConstant()) {
+        const RGBSpectrum kdMapped = Kd->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(1, kdMapped)
+    }
+    if (Ks->IsConstant()) {
+        const RGBSpectrum ksMapped = Ks->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(2, ksMapped)
+    }
+    if (Kr->IsConstant()) {
+        const RGBSpectrum krMapped = Kr->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(3, krMapped)
+    }
+    if (Kt->IsConstant()) {
+        const RGBSpectrum ktMapped = Kt->Evaluate().Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(4, ktMapped)
+    }
+    if ((roughnessu && roughnessu->IsConstant()) ||
+        (!roughnessu && roughness->IsConstant())) {
+        Float roughU;
+        if (roughnessu)
+            roughU = roughnessu->Evaluate();
+        else
+            roughU = roughness->Evaluate();
+        if (remapRoughness)
+            roughU = TrowbridgeReitzDistribution::RoughnessToAlpha(roughU);
+        const Float roughnessUMapped = Clamp(InverseLerp(roughU, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(5, roughnessUMapped)
+    }
+    if ((roughnessv && roughnessv->IsConstant()) ||
+        (!roughnessv && roughness->IsConstant())) {
+        Float roughV;
+        if (roughnessv)
+            roughV = roughnessv->Evaluate();
+        else
+            roughV = roughness->Evaluate();
+        if (remapRoughness)
+            roughV = TrowbridgeReitzDistribution::RoughnessToAlpha(roughV);
+        const Float roughnessVMapped = Clamp(InverseLerp(roughV, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(6, roughnessVMapped)
+    }
+    if (eta->IsConstant()) {
+        const Float etaMapped = Clamp(InverseLerp(eta->Evaluate(), 1.f + Epsilon, 2.42f), 0.f, 1.f);
+        LUT_SET_INDICES(7, etaMapped)
+    }
+}
+
+void UberMaterial::GetLUTIndices(
+    SurfaceInteraction *si,
+    std::vector<std::vector<Float>> &indices
+) const {
+    const Float cosThetaMapped = Clamp(InverseLerp(Dot(si->wo, si->shading.n), CosEpsilon, 1.f), 0.f, 1.f); // Transform wo.z to local space
+    LUT_SET_INDICES(0, cosThetaMapped)
+
+    unsigned char i = 1;
+    if (!Kd->IsConstant()) {
+        const RGBSpectrum kdMapped = Kd->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, kdMapped)
+        i++;
+    }
+    if (!Ks->IsConstant()) {
+        const RGBSpectrum ksMapped = Ks->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, ksMapped)
+        i++;
+    }
+    if (!Kr->IsConstant()) {
+        const RGBSpectrum krMapped = Kr->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, krMapped)
+        i++;
+    }
+    if (!Kt->IsConstant()) {
+        const RGBSpectrum ktMapped = Kt->Evaluate(*si).Clamp(0.f, 1.f);
+        LUT_SET_INDICES_SPECTRUM(i, ktMapped)
+        i++;
+    }
+    if (!((roughnessu && roughnessu->IsConstant()) ||
+          (!roughnessu && roughness->IsConstant()))) {
+        Float roughU;
+        if (roughnessu)
+            roughU = roughnessu->Evaluate(*si);
+        else
+            roughU = roughness->Evaluate(*si);
+        if (remapRoughness)
+            roughU = TrowbridgeReitzDistribution::RoughnessToAlpha(roughU);
+        const Float roughnessUMapped = Clamp(InverseLerp(roughU, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, roughnessUMapped)
+        i++;
+    }
+    if (!((roughnessv && roughnessv->IsConstant()) ||
+          (!roughnessv && roughness->IsConstant()))) {
+        Float roughV;
+        if (roughnessv)
+            roughV = roughnessv->Evaluate(*si);
+        else
+            roughV = roughness->Evaluate(*si);
+        if (remapRoughness)
+            roughV = TrowbridgeReitzDistribution::RoughnessToAlpha(roughV);
+        const Float roughnessVMapped = Clamp(InverseLerp(roughV, TrowbridgeAlphaMin, TrowbridgeAlphaMax), 0.f, 1.f);
+        LUT_SET_INDICES(i, roughnessVMapped)
+        i++;
+    }
+    if (!eta->IsConstant()) {
+        const Float etaMapped = Clamp(InverseLerp(eta->Evaluate(*si), 1.f + Epsilon, 2.42f), 0.f, 1.f);
+        LUT_SET_INDICES(i, etaMapped)
+    }
+}
+
+UberMaterial *CreateUberMaterial(const TextureParams &mp,
+                                 const unsigned long long id) {
     std::shared_ptr<Texture<Spectrum>> Kd =
         mp.GetSpectrumTexture("Kd", Spectrum(0.25f));
     std::shared_ptr<Texture<Spectrum>> Ks =
@@ -123,7 +329,7 @@ UberMaterial *CreateUberMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", true);
     return new UberMaterial(Kd, Ks, Kr, Kt, roughness, uroughness, vroughness,
-                            opacity, eta, bumpMap, remapRoughness);
+                            opacity, eta, bumpMap, remapRoughness, id);
 }
 
 }  // namespace pbrt

@@ -30,6 +30,16 @@
 
  */
 
+/*
+    This file contains modifications to the original pbrt source code for the
+    paper "A Statistical Approach to Monte Carlo Denoising"
+    (https://www.cg.tuwien.ac.at/StatMC).
+    
+    Copyright © 2024-2025 Hiroyuki Sakai for the modifications.
+    Original copyright and license (refer to the top of the file) remain
+    unaffected.
+ */
+
 #if defined(_MSC_VER)
 #define NOMINMAX
 #pragma once
@@ -130,6 +140,11 @@ class CoefficientSpectrum {
         for (int i = 0; i < nSpectrumSamples; ++i) c[i] += s2.c[i];
         return *this;
     }
+    CoefficientSpectrum &operator-=(const CoefficientSpectrum &s2) {
+        DCHECK(!s2.HasNaNs());
+        for (int i = 0; i < nSpectrumSamples; ++i) c[i] -= s2.c[i];
+        return *this;
+    }
     CoefficientSpectrum operator+(const CoefficientSpectrum &s2) const {
         DCHECK(!s2.HasNaNs());
         CoefficientSpectrum ret = *this;
@@ -222,6 +237,12 @@ class CoefficientSpectrum {
     friend CoefficientSpectrum Exp(const CoefficientSpectrum &s) {
         CoefficientSpectrum ret;
         for (int i = 0; i < nSpectrumSamples; ++i) ret.c[i] = std::exp(s.c[i]);
+        DCHECK(!ret.HasNaNs());
+        return ret;
+    }
+    friend CoefficientSpectrum Log(const CoefficientSpectrum &s) {
+        CoefficientSpectrum ret;
+        for (int i = 0; i < nSpectrumSamples; ++i) ret.c[i] = std::log(s.c[i]);
         DCHECK(!ret.HasNaNs());
         return ret;
     }
@@ -501,9 +522,19 @@ inline RGBSpectrum Lerp(Float t, const RGBSpectrum &s1, const RGBSpectrum &s2) {
     return (1 - t) * s1 + t * s2;
 }
 
+inline RGBSpectrum InverseLerp(const RGBSpectrum &spectrum,
+    const RGBSpectrum &s1, const RGBSpectrum &s2) {
+    return (spectrum - s1) / (s2 - s1);
+}
+
 inline SampledSpectrum Lerp(Float t, const SampledSpectrum &s1,
                             const SampledSpectrum &s2) {
     return (1 - t) * s1 + t * s2;
+}
+
+inline SampledSpectrum InverseLerp(const SampledSpectrum &spectrum,
+    const SampledSpectrum &s1, const SampledSpectrum &s2) {
+    return (spectrum - s1) / (s2 - s1);
 }
 
 void ResampleLinearSpectrum(const Float *lambdaIn, const Float *vIn, int nIn,
