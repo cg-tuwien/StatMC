@@ -2,14 +2,14 @@
 
 # © 2024-2025 Hiroyuki Sakai
 
-echo "This script will prompt you to reboot your system after installation."
-echo
+#echo "This script will prompt you to reboot your system after installation."
+#echo
 
-# Ensure the script is run as root
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Please run with sudo."
-  exit 1
-fi
+## Ensure the script is run as root
+#if [ "$(id -u)" -ne 0 ]; then
+#  echo "Please run with sudo."
+#  exit 1
+#fi
 
 # Ensure correct Ubuntu version
 if [ "$(lsb_release -r -s)" != "22.04" ]; then
@@ -23,12 +23,12 @@ if [ "$(lsb_release -r -s)" != "22.04" ]; then
 fi
 
 # Ensure up-to-date packages
-echo "It may make sense to first run apt update and apt upgrade."
-read -p "Continue anyway? (y/n): " update_choice
-if [[ "$update_choice" =~ ^[Nn]$ ]]; then
-  echo "Aborting."
-  exit 0
-fi
+#echo "It may make sense to first run apt update and apt upgrade."
+#read -p "Continue anyway? (y/n): " update_choice
+#if [[ "$update_choice" =~ ^[Nn]$ ]]; then
+#  echo "Aborting."
+#  exit 0
+#fi
 
 clang_version="16"
 libstdcpp_version="12"
@@ -38,23 +38,19 @@ ubuntu_version="ubuntu2204"
 
 # Check for existing CUDA installation
 if command -v nvcc &> /dev/null; then
-  echo "CUDA is already installed. Exiting."
-  exit 1
+  echo "CUDA is already installed."
+  #exit 1
 fi
 
 # Check for existing NVIDIA driver installation
 if lsmod | grep -i nvidia &> /dev/null; then
   echo "NVIDIA drivers are already installed."
-  read -p "Would you like to continue anyway? (y/n): " drivers_installed_choice
-  if [[ "$drivers_installed_choice" =~ ^[Nn]$ ]]; then
-    echo "Exiting..."
-    exit 1
-  fi
+  #exit 1
 fi
 
 # Install necessary packages
 ## Clang repository setup
-wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 add-apt-repository -y 'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main'
 
 apt-get update
@@ -88,10 +84,10 @@ if ! apt-get -y install cuda-toolkit-$cuda_version; then
 fi
 
 # Install drivers
-if ! apt-get install -y nvidia-kernel-open-$nvidia_driver_version cuda-drivers-$nvidia_driver_version; then
-  echo "Failed to install NVIDIA drivers. Exiting."
-  exit 1
-fi
+#if ! apt-get install -y nvidia-kernel-open-$nvidia_driver_version cuda-drivers-$nvidia_driver_version; then
+#  echo "Failed to install NVIDIA drivers. Exiting."
+#  exit 1
+#fi
 
 # Set environment variables permanently
 echo "export PATH=/usr/local/cuda-${cuda_version/-/.}/bin${PATH:+:${PATH}}" >> /etc/profile.d/cuda.sh
@@ -126,15 +122,15 @@ echo "exit 0" >> /etc/rc.local
 chown root /etc/rc.local
 chmod 755 /etc/rc.local
 
-echo
-echo "Installation complete."
+#echo
+#echo "Installation complete."
 
 # Prompt for reboot
-echo "A system reboot is required to complete the installation and load the new kernel modules."
-read -p "Reboot the system now? (y/n): " reboot_choice
-if [[ "$reboot_choice" =~ ^[Yy]$ ]]; then
-  echo "Rebooting system..."
-  reboot
-else
-  echo "Please reboot the system manually to complete the installation."
-fi
+#echo "A system reboot is required to complete the installation and load the new kernel modules."
+#read -p "Reboot the system now? (y/n): " reboot_choice
+#if [[ "$reboot_choice" =~ ^[Yy]$ ]]; then
+#  echo "Rebooting system..."
+#  reboot
+#else
+#  echo "Please reboot the system manually to complete the installation."
+#fi

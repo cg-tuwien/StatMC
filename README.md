@@ -29,7 +29,7 @@ While we have successfully tested GCC 11.4.0, it produces slightly different res
 
 In the following, we describe two alternative ways to build our code: an automatic approach tested for Ubuntu 22.04 LTS and a manual approach, which we recommend if you want to retrace the steps of the build process or use another operating system.
 
-### Automatic Building (for Ubuntu 22.04 LTS)
+### Automatic Building (for a fresh Ubuntu 22.04 LTS install)
 
 1.  Clone this repository (OpenCV will be cloned automatically as a submodule):
     ```bash
@@ -47,6 +47,10 @@ In the following, we describe two alternative ways to build our code: an automat
     ./scripts/_build.sh
     ```
     Our version of the pbrt binary should now be located in `build/pbrt-v3/`.
+
+### Docker Build Instructions
+
+We have prepared files required to run our project within a Docker container [here](docker).
 
 ### Manual Building
 
