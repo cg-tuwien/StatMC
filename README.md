@@ -16,6 +16,10 @@ The extensions are mostly implemented in [`src/statistics/`](src/statistics) and
 With the focus on research, this code is not intended for production.
 We appreciate your feedback, questions, and reports of any issues you encounter; feel free to [contact us](https://www.cg.tuwien.ac.at/staff/HiroyukiSakai)!
 
+[This code has received the **Graphics Replicability Stamp**](https://www.replicabilitystamp.org/index.html#https-github-com-cg-tuwien-statmc) from the [Graphics Replicability Stamp Initiative](https://www.replicabilitystamp.org/) on April 15, 2025 ([archived version](https://archive.softwareheritage.org/browse/snapshot/c7f9657697068a22017dee50570f58905d35fcc7/directory/)).
+
+**Update**: [StatER](https://www.cg.tuwien.ac.at/StatER) represents the next stage of this work; the code is available [here](https://github.com/cg-tuwien/StatER).
+
 
 ## Build Instructions
 
@@ -54,7 +58,7 @@ We have prepared files required to run our project within a Docker container [he
 
 ### Manual Building
 
-Skip this if you have used the automatic approach [above](#automatic-building-for-ubuntu-2204-lts).
+Skip this if you have used the automatic approach [above](#automatic-building-for-a-fresh-ubuntu-2204-lts-install).
 
 1.  Clone this repository (OpenCV will be cloned automatically as a submodule):
     ```bash
@@ -110,7 +114,7 @@ Skip this if you have used the automatic approach [above](#automatic-building-fo
 ## Usage
 
 The directory [`scenes/`](scenes) contains configurations and scene description files for reproducing the results in our paper.
-We do not include the complete scenes; they can be downloaded by running the [`scripts/download-scenes.sh`](scripts/_download-scenes.sh) shell script from the root directory of the repository:
+We do not include the complete scenes; they can be downloaded by running the [`scripts/_download-scenes.sh`](scripts/_download-scenes.sh) shell script from the root directory of the repository:
 ```bash
 ./scripts/_download-scenes.sh
 ```
@@ -266,7 +270,7 @@ We provide the following configurations in the [`scenes/`](scenes) directory:
 As can be seen in the scripts for reproducing the figures, a configuration file is activated by overwriting `scenes/_active.pbrt` with it.
 Once a configuration is activated, pbrt can be run normally, supplying the desired scene description file as parameter, e.g.,:
 ```bash
-pbrt ../../scenes/bathroom/scene-stat.pbrt
+./pbrt ../../scenes/bathroom/scene-stat.pbrt
 ```
 
 ### Buffer System
