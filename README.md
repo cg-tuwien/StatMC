@@ -18,7 +18,7 @@ We appreciate your feedback, questions, and reports of any issues you encounter;
 
 [This code has received the **Graphics Replicability Stamp**](https://www.replicabilitystamp.org/index.html#https-github-com-cg-tuwien-statmc) from the [Graphics Replicability Stamp Initiative](https://www.replicabilitystamp.org/) on April 15, 2025 ([archived version](https://archive.softwareheritage.org/browse/snapshot/c7f9657697068a22017dee50570f58905d35fcc7/directory/)).
 
-**Update**: [StatER](https://www.cg.tuwien.ac.at/StatER) represents the next stage of this work; the code is available [here](https://github.com/cg-tuwien/StatER).
+**Update**: Our SIGGRAPH Asia 2025 paper "[StatER](https://www.cg.tuwien.ac.at/StatER)" continues and expands upon this work; the code is available [here](https://github.com/cg-tuwien/StatER).
 
 
 ## Build Instructions
